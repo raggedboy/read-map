@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Read Map"
+  short_description: "Curate and maintain the reading index"
+  default_prompt: "Use $manage-read-map to verify these reading candidates and add the confirmed ones to my read map."
