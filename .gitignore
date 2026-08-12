@@ -1,5 +1,6 @@
 .DS_Store
 .claude/
+.cache/
 
 app/node_modules/
 app/dist/
