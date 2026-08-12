@@ -11,10 +11,10 @@ Read `AGENTS.md` before acting. Treat it as the source of truth for the data mod
 
 Choose the matching branch:
 
-- **Recommend:** search existing `readings/*.yaml` and return the most specific matching entries with computed progress and links. Keep the repository unchanged.
+- **Recommend:** search existing `map/readings/*.yaml` and return the most specific matching entries with computed progress and links. Keep the repository unchanged.
 - **Discover:** investigate external candidates, applying the verification rubric below. Separate discovery from collection and keep the repository unchanged unless the user explicitly says to add, record, or collect candidates.
-- **Add:** deduplicate against `inbox.yaml` and `readings/*.yaml`, then append explicitly confirmed candidates to `inbox.yaml` with `title`, `type`, optional `author`, canonical `link`, a concise semantic `description`, and `added` using the current local date.
-- **Promote:** move an explicitly confirmed inbox item into one flat `readings/{slug}.yaml`. Verify its identity and reading structure from a canonical source, supplied PDF, or repository documentation. Preserve only verified entries; use `entries: []` when no structure can be verified. Remove the promoted inbox item only after writing the reading successfully.
+- **Add:** deduplicate against `map/inbox.yaml` and `map/readings/*.yaml`, then append explicitly confirmed candidates to `map/inbox.yaml` with `title`, `type`, optional `author`, canonical `link`, a concise semantic `description`, and `added` using the current local date.
+- **Promote:** move explicitly confirmed inbox sources into one flat `map/readings/{slug}.yaml`. Keep books, complete papers, and repositories independent. Combine short sources into an `article-series` only when they answer one concrete reading question. Verify identity and reading structure from canonical sources, supplied PDFs, or repository documentation. Preserve only verified entries; use `entries: []` when no structure can be verified. Remove promoted inbox items only after writing the reading successfully.
 - **Record:** update only the progress or notes the user explicitly identifies. Resolve the title path, preserve leaf-only progress, and report the compact changed path.
 - **Progress:** recursively compute progress from leaf entries without persisting derived values.
 
@@ -35,7 +35,7 @@ For a short list, favor Classic and Authoritative candidates that cover distinct
 
 ## Shape readings
 
-Default to one source per reading. Combine multiple articles only when they form a coherent series under the same canonical publisher or author; represent that as `article-series`. Keep unrelated sources separate even when they share a topic.
+Keep Inbox atomic: one item per source. Shape readings around executable reading objects: long-form works stay independent, while short sources may form an `article-series` when they answer one concrete question. Keep unrelated sources separate even when they share a broad topic, and store each source's progress in only one reading.
 
 For books and PDFs, use the published table of contents, PDF bookmarks, and visible heading pages as evidence. For repositories, prefer the canonical documentation's intended reading path over the raw directory tree. Mark proposed structure as unverified instead of presenting it as an official table of contents.
 

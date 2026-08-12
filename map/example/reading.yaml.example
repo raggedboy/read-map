@@ -1,0 +1,9 @@
+title: 示例阅读
+type: book
+author: 示例作者
+description: 展示 Read Map 的最小数据结构。
+entries:
+  - title: 示例章节
+    description: 叶子节点保存阅读进度。
+    progress: 0
+    notes:
