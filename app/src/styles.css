@@ -130,6 +130,8 @@ a { color: inherit; }
 .notes-editor textarea { width: 100%; min-height: 88px; resize: vertical; padding: 10px; border: 1px solid #ccd4ce; border-radius: 8px; color: var(--ink); background: white; }
 .notes-editor .actions { justify-content: flex-end; margin-top: 8px; }
 .notes-editor .button { min-height: 32px; font-size: 11px; }
+.root-notes { display: grid; gap: 8px; }
+.root-notes textarea { width: 100%; min-height: 88px; resize: vertical; padding: 10px; border: 1px solid #ccd4ce; border-radius: 8px; color: var(--ink); background: white; }
 
 @media (max-width: 900px) {
   .overview-header, .detail-header { align-items: stretch; flex-direction: column; }

@@ -45,12 +45,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse): Pr
     const readingMatch = url.pathname.match(/^\/api\/readings\/([^/]+)\/entries$/);
     if (request.method === "PATCH" && readingMatch) {
       const payload = await body(request);
-      if (!Array.isArray(payload.path) || typeof payload.version !== "string") throw new DataError("path 和 version 必填");
+      if (!Array.isArray(payload.path) || typeof payload.dataVersion !== "string") throw new DataError("path 和 dataVersion 必填");
       const change: { progress?: number; notes?: string } = {};
       if (payload.progress !== undefined) change.progress = Number(payload.progress);
       if (payload.notes !== undefined) change.notes = String(payload.notes);
       if (change.progress === undefined && change.notes === undefined) throw new DataError("没有可保存的修改");
-      const state = await updateEntry(mapDir, decodeURIComponent(readingMatch[1]), payload.path.map(Number), change, payload.version);
+      const state = await updateEntry(mapDir, decodeURIComponent(readingMatch[1]), payload.path.map(Number), change, payload.dataVersion);
       json(response, 200, state);
       return true;
     }

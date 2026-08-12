@@ -1,6 +1,6 @@
 # Read Map App
 
-This directory owns the local visualization and simple YAML controls. `../map/AGENTS.md` owns the data contract.
+This directory owns the local visualization and simple YAML controls. `../map/CONTRACT.md` owns the data contract; read `../map/AGENTS.md` for reading-operation boundaries.
 
 ## Boundaries
 

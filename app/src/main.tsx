@@ -6,7 +6,7 @@ type InboxItem = {
   title: string;
   type: string;
   author?: string | null;
-  edition?: string | null;
+  version?: string | null;
   link?: string | null;
   description?: string | null;
   added?: string | null;
@@ -14,6 +14,9 @@ type InboxItem = {
 
 type Entry = {
   title: string;
+  type: string;
+  author?: string | null;
+  version?: string | null;
   description?: string | null;
   link?: string | null;
   progress?: number;
@@ -28,16 +31,17 @@ type Reading = {
   title: string;
   type: string;
   author?: string | null;
-  edition?: string | null;
+  version?: string | null;
   link?: string | null;
   description?: string | null;
+  notes?: string | null;
   file: string;
-  version: string;
+  dataVersion: string;
   progress: number;
   status: "unstarted" | "reading" | "completed";
   leafCount: number;
   completedCount: number;
-  entries: Entry[];
+  children: Entry[];
 };
 
 type MapState = {
@@ -52,9 +56,10 @@ type MapState = {
 const TYPE_LABELS: Record<string, string> = {
   book: "书籍",
   article: "文章",
-  "article-series": "文章系列",
+  collection: "集合",
   repo: "仓库",
   paper: "论文",
+  section: "章节",
 };
 
 async function api(path: string, options?: RequestInit): Promise<MapState> {
@@ -232,6 +237,14 @@ function Detail({ reading, disabled, onBack, onUpdate }: {
   onBack: () => void;
   onUpdate: (path: number[], change: { progress?: number; notes?: string }) => Promise<void>;
 }) {
+  const [editingRootNotes, setEditingRootNotes] = useState(false);
+  const [rootNotes, setRootNotes] = useState(reading.notes || "");
+  const [rootProgress, setRootProgress] = useState(reading.progress);
+  const rootLeaf = reading.children.length === 0;
+
+  useEffect(() => setRootNotes(reading.notes || ""), [reading.notes]);
+  useEffect(() => setRootProgress(reading.progress), [reading.progress]);
+
   return (
     <div className="detail-shell">
       <button className="button back" onClick={onBack}>← 返回概览</button>
@@ -239,7 +252,7 @@ function Detail({ reading, disabled, onBack, onUpdate }: {
         <div>
           <div className="eyebrow">Reading Detail · {TYPE_LABELS[reading.type] || reading.type}</div>
           <h1>{reading.title}</h1>
-          <p>{[reading.author, reading.edition].filter(Boolean).join(" · ")}</p>
+          <p>{[reading.author, reading.version].filter(Boolean).join(" · ")}</p>
         </div>
         <div className="stats">
           <div><strong>{reading.leafCount}</strong><span>阅读单元</span></div>
@@ -247,17 +260,20 @@ function Detail({ reading, disabled, onBack, onUpdate }: {
           <div><strong>{reading.progress}%</strong><span>总进度</span></div>
         </div>
       </header>
-      <StructureOverview entries={reading.entries} />
+      <StructureOverview entries={reading.children} />
       <section className="detail-grid">
         <main className="reading-panel">
           <div className="panel-header"><div><h2>阅读目录</h2><p>父级进度由直接子节点递归计算。</p></div>{reading.link && <a className="button primary" href={reading.link} target="_blank" rel="noreferrer">打开来源</a>}</div>
-          {reading.entries.length ? reading.entries.map(entry => <EntryRow key={entry.path.join("-")} entry={entry} reading={reading} depth={0} disabled={disabled} onUpdate={onUpdate} />) : <EmptyCard>目录尚未核验。请通过 Agent 整理阅读结构。</EmptyCard>}
+          {reading.children.length ? reading.children.map(entry => <EntryRow key={entry.path.join("-")} entry={entry} reading={reading} depth={0} disabled={disabled} onUpdate={onUpdate} />) : <EmptyCard>目录尚未核验。请通过 Agent 整理阅读结构。</EmptyCard>}
         </main>
         <aside className="reading-aside">
           <div className="eyebrow">Overview</div>
           <h2>{reading.progress}%</h2>
           <ProgressBar value={reading.progress} />
           {reading.description && <p>{reading.description}</p>}
+          {rootLeaf && <div className="progress-controls"><button disabled={disabled || rootProgress === 0} onClick={() => { const next = Math.max(0, rootProgress - 10); setRootProgress(next); void onUpdate([], { progress: next }); }}>−</button><input disabled={disabled} type="number" min="0" max="100" value={rootProgress} onChange={event => setRootProgress(Number(event.target.value))} onBlur={() => void onUpdate([], { progress: rootProgress })} /><button disabled={disabled || rootProgress === 100} onClick={() => { const next = Math.min(100, rootProgress + 10); setRootProgress(next); void onUpdate([], { progress: next }); }}>＋</button></div>}
+          <button className="button" onClick={() => setEditingRootNotes(value => !value)}>整体笔记</button>
+          {editingRootNotes && <div className="root-notes"><textarea disabled={disabled} value={rootNotes} onChange={event => setRootNotes(event.target.value)} placeholder="记录这份 reading 的整体笔记…" /><button className="button primary" disabled={disabled} onClick={() => void onUpdate([], { notes: rootNotes })}>保存笔记</button></div>}
           <dl><div><dt>类型</dt><dd>{TYPE_LABELS[reading.type] || reading.type}</dd></div><div><dt>文件</dt><dd>{reading.file}</dd></div><div><dt>状态</dt><dd>{reading.status === "unstarted" ? "未开始" : reading.status === "reading" ? "进行中" : "已完成"}</dd></div></dl>
         </aside>
       </section>
@@ -306,7 +322,7 @@ function App() {
   };
 
   const update = async (reading: Reading, path: number[], change: { progress?: number; notes?: string }) => {
-    await perform(() => api(`/api/readings/${encodeURIComponent(reading.file)}/entries`, { method: "PATCH", body: JSON.stringify({ path, version: reading.version, ...change }) }), "已保存");
+    await perform(() => api(`/api/readings/${encodeURIComponent(reading.file)}/entries`, { method: "PATCH", body: JSON.stringify({ path, dataVersion: reading.dataVersion, ...change }) }), "已保存");
   };
 
   const removeInbox = async (index: number) => {

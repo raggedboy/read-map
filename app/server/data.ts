@@ -3,52 +3,48 @@ import { copyFile, mkdir, open, readFile, readdir, rename, rm, stat } from "node
 import path from "node:path";
 import { parseDocument, type Document } from "yaml";
 
-const READING_TYPES = new Set(["book", "article", "article-series", "repo", "paper"]);
+const INBOX_TYPES = new Set(["collection", "book", "article", "repo", "paper"]);
+const READING_TYPES = new Set([...INBOX_TYPES, "section"]);
 
-export type Entry = {
+export type ReadingNode = {
   title: string;
+  type: string;
+  author?: string | null;
+  version?: string | null;
   description?: string | null;
   link?: string | null;
   progress?: number;
   notes?: string | null;
-  children?: Entry[];
+  children?: ReadingNode[];
 };
 
-type Reading = {
-  title: string;
-  type: string;
-  author?: string | null;
-  edition?: string | null;
-  link?: string | null;
-  description?: string | null;
-  entries: Entry[];
-};
+type Reading = ReadingNode;
 
 type InboxItem = {
   title: string;
   type: string;
   author?: string | null;
-  edition?: string | null;
+  version?: string | null;
   link?: string | null;
   description?: string | null;
   added?: string | null;
 };
 
-export type EntryView = Entry & {
+export type EntryView = ReadingNode & {
   path: number[];
   derivedProgress: number;
   leaf: boolean;
   children?: EntryView[];
 };
 
-export type ReadingView = Omit<Reading, "entries"> & {
+export type ReadingView = Omit<Reading, "children"> & {
   file: string;
-  version: string;
+  dataVersion: string;
   progress: number;
   status: "unstarted" | "reading" | "completed";
   leafCount: number;
   completedCount: number;
-  entries: EntryView[];
+  children: EntryView[];
 };
 
 export type MapState = {
@@ -77,11 +73,16 @@ function optionalText(value: unknown): boolean {
   return value === undefined || value === null || typeof value === "string";
 }
 
-function validateEntry(value: unknown, location: string): string[] {
+function rejectUnknownKeys(value: Record<string, unknown>, allowed: Set<string>, location: string): string[] {
+  return Object.keys(value).filter(key => !allowed.has(key)).map(key => `${location}.${key} 未在 contract 中定义`);
+}
+
+function validateNode(value: unknown, location: string): string[] {
   if (!isObject(value)) return [`${location} 必须是对象`];
-  const errors: string[] = [];
+  const errors = rejectUnknownKeys(value, new Set(["title", "type", "author", "version", "description", "link", "progress", "notes", "children"]), location);
   if (typeof value.title !== "string" || !value.title.trim()) errors.push(`${location}.title 必填`);
-  for (const key of ["description", "link", "notes"]) {
+  if (typeof value.type !== "string" || !READING_TYPES.has(value.type)) errors.push(`${location}.type 无效`);
+  for (const key of ["author", "version", "description", "link", "notes"]) {
     if (!optionalText(value[key])) errors.push(`${location}.${key} 必须是字符串或空值`);
   }
 
@@ -92,27 +93,15 @@ function validateEntry(value: unknown, location: string): string[] {
   }
   if (Array.isArray(children) && children.length > 0) {
     if ("progress" in value) errors.push(`${location} 是父节点，不能保存 progress`);
-    children.forEach((child, index) => errors.push(...validateEntry(child, `${location}.children[${index}]`)));
-  } else if (typeof value.progress !== "number" || !Number.isFinite(value.progress) || value.progress < 0 || value.progress > 100) {
-    errors.push(`${location} 是叶子节点，progress 必须在 0-100`);
+    children.forEach((child, index) => errors.push(...validateNode(child, `${location}.children[${index}]`)));
+  } else if (value.progress !== undefined && (typeof value.progress !== "number" || !Number.isFinite(value.progress) || value.progress < 0 || value.progress > 100)) {
+    errors.push(`${location}.progress 必须在 0-100`);
   }
   return errors;
 }
 
 export function validateReading(value: unknown): string[] {
-  if (!isObject(value)) return ["reading 必须是对象"];
-  const errors: string[] = [];
-  if (typeof value.title !== "string" || !value.title.trim()) errors.push("title 必填");
-  if (typeof value.type !== "string" || !READING_TYPES.has(value.type)) errors.push("type 无效");
-  for (const key of ["author", "edition", "link", "description"]) {
-    if (!optionalText(value[key])) errors.push(`${key} 必须是字符串或空值`);
-  }
-  if (!Array.isArray(value.entries)) {
-    errors.push("entries 必须是数组");
-  } else {
-    value.entries.forEach((entry, index) => errors.push(...validateEntry(entry, `entries[${index}]`)));
-  }
-  return errors;
+  return validateNode(value, "reading");
 }
 
 export function validateInbox(value: unknown): string[] {
@@ -123,9 +112,10 @@ export function validateInbox(value: unknown): string[] {
       errors.push(`inbox[${index}] 必须是对象`);
       return;
     }
+    errors.push(...rejectUnknownKeys(item, new Set(["title", "type", "author", "version", "link", "description", "added"]), `inbox[${index}]`));
     if (typeof item.title !== "string" || !item.title.trim()) errors.push(`inbox[${index}].title 必填`);
-    if (typeof item.type !== "string" || !READING_TYPES.has(item.type)) errors.push(`inbox[${index}].type 无效`);
-    for (const key of ["author", "edition", "link", "description", "added"]) {
+    if (typeof item.type !== "string" || !INBOX_TYPES.has(item.type)) errors.push(`inbox[${index}].type 无效`);
+    for (const key of ["author", "version", "link", "description", "added"]) {
       if (!optionalText(item[key])) errors.push(`inbox[${index}].${key} 必须是字符串或空值`);
     }
   });
@@ -142,14 +132,14 @@ function parseYaml<T>(text: string, label: string): { doc: Document; value: T } 
   return { doc, value: doc.toJS() as T };
 }
 
-function progressOf(entry: Entry): number {
+function progressOf(entry: ReadingNode): number {
   if (entry.children?.length) {
     return entry.children.reduce((sum, child) => sum + progressOf(child), 0) / entry.children.length;
   }
   return entry.progress ?? 0;
 }
 
-function viewEntry(entry: Entry, indexPath: number[]): EntryView {
+function viewEntry(entry: ReadingNode, indexPath: number[]): EntryView {
   const { children: sourceChildren, ...fields } = entry;
   const children = sourceChildren?.map((child, index) => viewEntry(child, [...indexPath, index]));
   return {
@@ -161,24 +151,23 @@ function viewEntry(entry: Entry, indexPath: number[]): EntryView {
   };
 }
 
-function flatten(entries: Entry[]): Entry[] {
-  return entries.flatMap(entry => entry.children?.length ? flatten(entry.children) : [entry]);
+function flatten(nodes: ReadingNode[]): ReadingNode[] {
+  return nodes.flatMap(node => node.children?.length ? flatten(node.children) : [node]);
 }
 
-function readingView(reading: Reading, file: string, version: string): ReadingView {
-  const leaves = flatten(reading.entries);
-  const progress = reading.entries.length
-    ? Math.round(reading.entries.reduce((sum, entry) => sum + progressOf(entry), 0) / reading.entries.length)
-    : 0;
+function readingView(reading: Reading, file: string, dataVersion: string): ReadingView {
+  const sourceChildren = reading.children || [];
+  const leaves = sourceChildren.length ? flatten(sourceChildren) : [reading];
+  const progress = Math.round(progressOf(reading));
   return {
     ...reading,
     file,
-    version,
+    dataVersion,
     progress,
     status: progress === 100 && leaves.length > 0 ? "completed" : progress > 0 ? "reading" : "unstarted",
     leafCount: leaves.length,
     completedCount: leaves.filter(entry => entry.progress === 100).length,
-    entries: reading.entries.map((entry, index) => viewEntry(entry, [index])),
+    children: sourceChildren.map((entry, index) => viewEntry(entry, [index])),
   };
 }
 
@@ -261,8 +250,9 @@ async function atomicWrite(file: string, text: string): Promise<void> {
 }
 
 function yamlEntryPath(indexPath: number[]): Array<string | number> {
-  if (!indexPath.length || indexPath.some(value => !Number.isInteger(value) || value < 0)) throw new DataError("entry path 无效");
-  const result: Array<string | number> = ["entries", indexPath[0]];
+  if (indexPath.some(value => !Number.isInteger(value) || value < 0)) throw new DataError("entry path 无效");
+  if (!indexPath.length) return [];
+  const result: Array<string | number> = ["children", indexPath[0]];
   for (const index of indexPath.slice(1)) result.push("children", index);
   return result;
 }
@@ -285,8 +275,8 @@ export async function updateEntry(
   const loaded = await loadDocument<Reading>(target, file);
   if (loaded.version !== expectedVersion) throw new DataError("文件已被其他操作修改，请刷新后重试", 409);
   const nodePath = yamlEntryPath(indexPath);
-  const entry = loaded.doc.getIn(nodePath) as { toJSON?: () => Entry } | undefined;
-  const plainEntry = entry?.toJSON?.();
+  const entry = nodePath.length ? loaded.doc.getIn(nodePath) as { toJSON?: () => ReadingNode } | undefined : loaded.doc;
+  const plainEntry = entry?.toJSON?.() as ReadingNode | undefined;
   if (!plainEntry) throw new DataError("找不到指定阅读单元", 404);
 
   if (change.progress !== undefined) {
