@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, createServer as createViteServer, type ViteDevServer } from "vite";
 import { DataError, deleteInboxItem, initializeMap, loadMapState, updateEntry } from "./data.ts";
+import { serveResource } from "./resources.ts";
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(serverDir, "..");
@@ -138,6 +139,7 @@ async function main(): Promise<void> {
 
   const server = createServer(async (request, response) => {
     if (await handleApi(request, response)) return;
+    if (await serveResource(request, response, mapDir)) return;
     if (vite) {
       vite.middlewares(request, response, () => json(response, 404, { error: "页面不存在" }));
       return;

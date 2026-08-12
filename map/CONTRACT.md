@@ -38,6 +38,8 @@ children:            # optional; recursive ReadingNode[]
 
 `title` and `type` are required on every node. A node with non-empty `children` must not store `progress`. A leaf may omit `progress`; it is then treated as `0`. Empty `children` is equivalent to a leaf and should normally be omitted.
 
+For a local file or directory under `map/resources/`, store `link` relative to `map/`, for example `resources/book.pdf` or `resources/repository/docs/`. Do not store the local server host, port, absolute filesystem path, or a `map/` prefix. The app resolves these links through its local `/resources/` route.
+
 Parent progress is computed recursively as the arithmetic mean of its direct children. A reading with no children and no explicit progress is unstarted.
 
 ## Invariants

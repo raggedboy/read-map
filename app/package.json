@@ -11,7 +11,7 @@
     "start": "node server/main.ts",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test server/data.test.ts",
+    "test": "node --test server/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {

@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useMemo, useState } from "react";
+import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -62,6 +62,15 @@ const TYPE_LABELS: Record<string, string> = {
   section: "章节",
 };
 
+function sourceHref(link: string): string {
+  if (/^[a-z][a-z\d+.-]*:/i.test(link) || link.startsWith("//")) return link;
+  const normalized = link.replace(/^\.\//, "").replace(/^\/?map\/resources\/?/, "resources/");
+  if (!normalized.startsWith("resources/")) return link;
+  const trailingSlash = normalized.endsWith("/");
+  const encoded = normalized.slice("resources/".length).split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  return `/resources/${encoded}${trailingSlash ? "/" : ""}`;
+}
+
 async function api(path: string, options?: RequestInit): Promise<MapState> {
   const response = await fetch(path, {
     ...options,
@@ -88,7 +97,7 @@ function InboxCard({ item, onDelete, disabled }: { item: InboxItem; onDelete: ()
       {item.author && <div className="muted">{item.author}</div>}
       {item.description && <p>{item.description}</p>}
       <div className="actions">
-        {item.link && <a className="button" href={item.link} target="_blank" rel="noreferrer">打开来源</a>}
+        {item.link && <a className="button" href={sourceHref(item.link)} target="_blank" rel="noreferrer">打开来源</a>}
         <button className="button danger" disabled={disabled} onClick={onDelete}>删除</button>
       </div>
     </article>
@@ -176,6 +185,110 @@ function StructureOverview({ entries }: { entries: Entry[] }) {
   );
 }
 
+const PencilIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </svg>
+);
+
+const ChevronDown = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6" /></svg>
+);
+
+const ChevronRight = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m9 18 6-6-6-6" /></svg>
+);
+
+const ExternalIcon = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+  </svg>
+);
+
+function ReadingStatus({ value, disabled, onChange }: { value: number; disabled: boolean; onChange: (value: number) => Promise<void> }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const isLongPress = useRef(false);
+  const [showSlider, setShowSlider] = useState(false);
+  const [exact, setExact] = useState(value);
+  const status = value === 0 ? "unread" : value === 100 ? "completed" : "reading";
+  const labels = { unread: "未阅读", reading: "阅读中", completed: "已完成" };
+
+  useEffect(() => setExact(value), [value]);
+
+  const save = async (next: number) => {
+    setShowSlider(false);
+    if (next !== value) await onChange(next);
+  };
+
+  useEffect(() => {
+    if (!showSlider) return;
+    const close = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) void save(exact);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [showSlider, exact, value]);
+
+  const nextInCycle = () => {
+    if (value === 0) return 50;
+    if (value === 100) return 0;
+    return 100;
+  };
+
+  const handlePointerDown = () => {
+    if (disabled) return;
+    isLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      isLongPress.current = true;
+      setShowSlider(true);
+    }, 500);
+  };
+
+  const handlePointerUp = () => clearTimeout(longPressTimer.current);
+  const handlePointerLeave = () => clearTimeout(longPressTimer.current);
+
+  const handleClick = () => {
+    if (disabled || isLongPress.current) return;
+    void save(showSlider ? exact : nextInCycle());
+  };
+
+  return (
+    <div className="reading-status" ref={containerRef}>
+      <button
+        className={`status-button ${status}`}
+        disabled={disabled}
+        aria-label={`阅读状态：${labels[status]}，点击切换，长按调整进度`}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+        onClick={handleClick}
+      >
+        <span className={`status-dot ${status}`} aria-hidden="true" />
+        {labels[status]}
+      </button>
+      {showSlider && (
+        <div className="status-slider">
+          <div className="slider-header">
+            <span>精确进度</span>
+            <output>{exact}%</output>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={exact}
+            onChange={event => setExact(Number(event.target.value))}
+            onMouseUp={() => void save(exact)}
+            onTouchEnd={() => void save(exact)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EntryRow({ entry, reading, depth, disabled, onUpdate }: {
   entry: Entry;
   reading: Reading;
@@ -200,24 +313,18 @@ function EntryRow({ entry, reading, depth, disabled, onUpdate }: {
   return (
     <section id={entryId(entry)} className={`entry depth-${depth} ${entry.leaf ? "leaf" : "branch"}`}>
       <div className="entry-main" style={{ paddingLeft: `${12 + depth * 20}px` }}>
-        <button className="entry-toggle" onClick={() => setExpanded(value => !value)} aria-label={expanded ? "收起" : "展开"}>{entry.children?.length ? (expanded ? "⌄" : "›") : "·"}</button>
+        <button className="entry-toggle" onClick={() => setExpanded(value => !value)} aria-label={expanded ? "收起" : "展开"}>{entry.children?.length ? (expanded ? <ChevronDown /> : <ChevronRight />) : <span className="entry-dot">·</span>}</button>
         <div className="entry-copy">
           {entry.link
-            ? <a className="entry-title entry-link" href={entry.link} target="_blank" rel="noreferrer" title="打开阅读内容">{entry.title}<span aria-hidden="true">↗</span></a>
+            ? <a className="entry-title entry-link" href={sourceHref(entry.link)} target="_blank" rel="noreferrer" title="打开阅读内容">{entry.title}<span aria-hidden="true"><ExternalIcon /></span></a>
             : <div className="entry-title">{entry.title}</div>}
           {entry.description && <div className="entry-description">{entry.description}</div>}
         </div>
-        <div className="entry-progress"><ProgressBar value={entry.derivedProgress} /><span>{entry.derivedProgress}%</span></div>
-        {entry.leaf ? (
-          <div className="progress-controls">
-            <button disabled={disabled || progress === 0} onClick={() => void saveProgress(progress - 10)} aria-label="进度减 10">−</button>
-            <input disabled={disabled} type="number" min="0" max="100" value={progress} onChange={event => setProgress(Number(event.target.value))} onBlur={() => void saveProgress(progress)} onKeyDown={event => { if (event.key === "Enter") void saveProgress(progress); }} />
-            <button disabled={disabled || progress === 100} onClick={() => void saveProgress(progress + 10)} aria-label="进度加 10">＋</button>
-          </div>
-        ) : <div className="derived-label">自动计算</div>}
+        {entry.leaf
+          ? <ReadingStatus value={progress} disabled={disabled} onChange={saveProgress} />
+          : <><div className="entry-progress"><ProgressBar value={entry.derivedProgress} /><span>{entry.derivedProgress}%</span></div><div className="derived-label">自动计算</div></>}
         <div className="entry-actions">
-          {entry.link && <a href={entry.link} target="_blank" rel="noreferrer">打开</a>}
-          <button onClick={() => setEditingNotes(value => !value)}>笔记</button>
+          <button className={`notes-button ${entry.notes ? "has-notes" : ""}`} title={entry.notes ? "查看笔记" : "添加笔记"} aria-label={entry.notes ? "查看笔记" : "添加笔记"} onClick={() => setEditingNotes(value => !value)}><PencilIcon /></button>
         </div>
       </div>
       {editingNotes && (
@@ -239,11 +346,9 @@ function Detail({ reading, disabled, onBack, onUpdate }: {
 }) {
   const [editingRootNotes, setEditingRootNotes] = useState(false);
   const [rootNotes, setRootNotes] = useState(reading.notes || "");
-  const [rootProgress, setRootProgress] = useState(reading.progress);
   const rootLeaf = reading.children.length === 0;
 
   useEffect(() => setRootNotes(reading.notes || ""), [reading.notes]);
-  useEffect(() => setRootProgress(reading.progress), [reading.progress]);
 
   return (
     <div className="detail-shell">
@@ -263,7 +368,7 @@ function Detail({ reading, disabled, onBack, onUpdate }: {
       <StructureOverview entries={reading.children} />
       <section className="detail-grid">
         <main className="reading-panel">
-          <div className="panel-header"><div><h2>阅读目录</h2><p>父级进度由直接子节点递归计算。</p></div>{reading.link && <a className="button primary" href={reading.link} target="_blank" rel="noreferrer">打开来源</a>}</div>
+          <div className="panel-header"><div><h2>阅读目录</h2><p>父级进度由直接子节点递归计算。</p></div>{reading.link && <a className="button primary" href={sourceHref(reading.link)} target="_blank" rel="noreferrer">打开来源</a>}</div>
           {reading.children.length ? reading.children.map(entry => <EntryRow key={entry.path.join("-")} entry={entry} reading={reading} depth={0} disabled={disabled} onUpdate={onUpdate} />) : <EmptyCard>目录尚未核验。请通过 Agent 整理阅读结构。</EmptyCard>}
         </main>
         <aside className="reading-aside">
@@ -271,7 +376,7 @@ function Detail({ reading, disabled, onBack, onUpdate }: {
           <h2>{reading.progress}%</h2>
           <ProgressBar value={reading.progress} />
           {reading.description && <p>{reading.description}</p>}
-          {rootLeaf && <div className="progress-controls"><button disabled={disabled || rootProgress === 0} onClick={() => { const next = Math.max(0, rootProgress - 10); setRootProgress(next); void onUpdate([], { progress: next }); }}>−</button><input disabled={disabled} type="number" min="0" max="100" value={rootProgress} onChange={event => setRootProgress(Number(event.target.value))} onBlur={() => void onUpdate([], { progress: rootProgress })} /><button disabled={disabled || rootProgress === 100} onClick={() => { const next = Math.min(100, rootProgress + 10); setRootProgress(next); void onUpdate([], { progress: next }); }}>＋</button></div>}
+          {rootLeaf && <ReadingStatus value={reading.progress} disabled={disabled} onChange={value => onUpdate([], { progress: value })} />}
           <button className="button" onClick={() => setEditingRootNotes(value => !value)}>整体笔记</button>
           {editingRootNotes && <div className="root-notes"><textarea disabled={disabled} value={rootNotes} onChange={event => setRootNotes(event.target.value)} placeholder="记录这份 reading 的整体笔记…" /><button className="button primary" disabled={disabled} onClick={() => void onUpdate([], { notes: rootNotes })}>保存笔记</button></div>}
           <dl><div><dt>类型</dt><dd>{TYPE_LABELS[reading.type] || reading.type}</dd></div><div><dt>文件</dt><dd>{reading.file}</dd></div><div><dt>状态</dt><dd>{reading.status === "unstarted" ? "未开始" : reading.status === "reading" ? "进行中" : "已完成"}</dd></div></dl>
