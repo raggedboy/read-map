@@ -1,0 +1,4 @@
+interface:
+  display_name: "Read Record"
+  short_description: "Record reading progress and notes"
+  default_prompt: "Use $read-record to record this progress or note."

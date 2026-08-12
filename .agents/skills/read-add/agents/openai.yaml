@@ -1,0 +1,4 @@
+interface:
+  display_name: "Read Add"
+  short_description: "Add confirmed sources to inbox"
+  default_prompt: "Use $read-add to add these confirmed sources to my reading inbox."

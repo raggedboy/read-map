@@ -1,0 +1,4 @@
+interface:
+  display_name: "Read Promote"
+  short_description: "Shape inbox sources into readings"
+  default_prompt: "Use $read-promote to prepare a reading draft from this inbox source."

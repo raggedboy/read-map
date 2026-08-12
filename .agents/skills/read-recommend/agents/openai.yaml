@@ -1,0 +1,4 @@
+interface:
+  display_name: "Read Recommend"
+  short_description: "Recommend from existing readings"
+  default_prompt: "Use $read-recommend to find the most relevant material already in my read map."
