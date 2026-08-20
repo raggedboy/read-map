@@ -1,15 +1,13 @@
 ---
 name: read-recommend
-description: Recommend the most relevant material already present in map/readings. Use when the user asks what to read for a problem or wants suggestions from the existing read map.
+description: Recommend relevant material already present in cloud readings. Use when the user asks what to read for a problem.
 ---
 
 # Read Recommend
 
-Read `AGENTS.md`, `map/AGENTS.md`, and `map/CONTRACT.md` completely.
+Read `map/CONTRACT.md` completely.
 
-1. Scan every node's `title` and `description` under `map/readings/*.yaml`.
-2. Match the user's current problem to the most specific useful nodes. Do not search externally.
-3. Recursively compute progress from leaves and include the direct link when available.
-4. Return a short ranked recommendation with why each item is useful now.
-
-Keep the repository unchanged. Finish when the recommendations cover the stated problem or clearly say the existing map has no suitable material.
+1. Read current cloud state with `node client/read-map-client.mjs state`.
+2. Match the user's problem against Reading and node titles and descriptions. Do not search externally.
+3. Prefer the most specific useful nodes and include current progress and direct links.
+4. Return a short ranked recommendation. Keep all data unchanged.

@@ -1,33 +1,33 @@
 # Read Map Contract
 
-This file is the source of truth for YAML data under `map/`. The app validator is an executable implementation of this contract. If they disagree, stop the operation and report the conflict.
+This contract defines the stable logical data exchanged by the website, Agent Skills, and Client. Storage is currently implemented by D1 for structured documents and R2 for source files; callers must not depend on those storage details.
 
 ## Inbox
 
-`inbox.yaml` is a YAML list of atomic, unshaped sources. Each item uses:
+An Inbox item is an unshaped source:
 
 ```yaml
 title: string
 type: collection | book | article | paper | repo
 author: string       # optional
 link: string         # optional
-version: string      # optional; edition, revision, tag, or commit
+version: string      # optional
 description: string  # optional
 added: YYYY-MM-DD    # optional
 ```
 
-`title` and `type` are required. Inbox items do not contain reading structure or progress.
+`title` and `type` are required. Inbox items never contain reading structure or progress. Identity is determined by canonical link when present, otherwise by normalized title.
 
-## Readings
+## Reading
 
-Every `readings/*.yaml` file contains one recursive `ReadingNode`:
+A Reading is one recursive `ReadingNode`:
 
 ```yaml
 title: string
 type: collection | book | article | paper | repo | section
 author: string       # optional
 link: string         # optional
-version: string      # optional; edition, revision, tag, or commit
+version: string      # optional
 description: string  # optional
 progress: 0          # optional; leaf nodes only
 notes: string        # optional; any node
@@ -36,17 +36,17 @@ children:            # optional; recursive ReadingNode[]
     type: section
 ```
 
-`title` and `type` are required on every node. A node with non-empty `children` must not store `progress`. A leaf may omit `progress`; it is then treated as `0`. Empty `children` is equivalent to a leaf and should normally be omitted.
+A node with children must not store progress. Missing leaf progress means `0`. Parent progress is the arithmetic mean of direct children, calculated recursively.
 
-For a local file or directory under `map/resources/`, store `link` relative to `map/`, for example `resources/book.pdf` or `resources/repository/docs/`. Do not store the local server host, port, absolute filesystem path, or a `map/` prefix. The app resolves these links through its local `/resources/` route.
+## Resource links
 
-Parent progress is computed recursively as the arithmetic mean of its direct children. A reading with no children and no explicit progress is unstarted.
+R2-backed resources use logical links beginning with `resources/`, such as `resources/book.pdf`. Callers must not store local absolute paths, database identifiers, bucket names, or deployment-specific URLs.
 
-## Invariants
+## Operations
 
-- Use only the fields defined above.
-- Keep `author` as display text, including multiple people or an organization.
-- Use `section` for internal source structure such as parts, chapters, sections, directories, or files when no more specific material type applies.
-- Use `collection` for a reading that groups independent sources.
-- Store a source's progress in only one reading.
-- Preserve verified source structure. Structural selection and rearrangement are decisions made during each promote; the contract does not prescribe them.
+- `add`: append a confirmed, deduplicated Inbox item.
+- `record`: update only an explicitly selected node's progress or notes.
+- `promote`: after explicit approval, create one Reading and remove the selected Inbox items.
+- `recommend` and `research`: read-only.
+
+All writes use the latest document version and reject stale updates.

@@ -5,6 +5,11 @@ export type ReadingNode = {
   description?: string | null; link?: string | null; progress?: number;
   notes?: string | null; children?: ReadingNode[];
 };
+export type InboxItem = {
+  title: string; type: "collection" | "book" | "article" | "paper" | "repo";
+  author?: string | null; link?: string | null; version?: string | null;
+  description?: string | null; added?: string | null;
+};
 type Stored = { path: string; kind: string; content: string; version: number };
 
 async function ensureSchema() {
@@ -77,3 +82,34 @@ export async function recordResource(path: string, contentType: string, size: nu
     .bind(path, contentType, size, new Date().toISOString()).run();
 }
 
+function canonicalLink(value?: string | null) {
+  return value?.trim().replace(/\/$/, "").toLowerCase() || "";
+}
+
+export async function addInboxItem(item: InboxItem, expectedVersion?: string | null) {
+  const allowedTypes = new Set(["collection", "book", "article", "paper", "repo"]);
+  if (!item?.title?.trim() || !allowedTypes.has(item.type)) throw new Error("Inbox 条目缺少有效的 title 或 type");
+  const doc = await getDocument("inbox.yaml");
+  if (doc && expectedVersion !== String(doc.version)) throw new Error("Inbox 已被其他操作修改，请刷新后重试");
+  const items = doc ? JSON.parse(doc.content) as InboxItem[] : [];
+  const link = canonicalLink(item.link);
+  const duplicate = items.some(existing => link ? canonicalLink(existing.link) === link : existing.title.trim().toLowerCase() === item.title.trim().toLowerCase());
+  if (duplicate) throw new Error("该来源已经存在于 Inbox");
+  items.push({ ...item, title: item.title.trim(), added: item.added || new Date().toISOString().slice(0, 10) });
+  await saveDocument("inbox.yaml", "inbox", items, doc ? String(doc.version) : undefined);
+}
+
+export async function promoteInbox(readingFile: string, reading: ReadingNode, inboxIndexes: number[], inboxVersion: string) {
+  if (!/^[^/]+\.yaml$/.test(readingFile)) throw new Error("reading 文件名无效");
+  if (!reading?.title?.trim() || !reading.type) throw new Error("Reading 缺少 title 或 type");
+  const inboxDoc = await getDocument("inbox.yaml");
+  if (!inboxDoc || String(inboxDoc.version) !== inboxVersion) throw new Error("Inbox 已被其他操作修改，请刷新后重试");
+  const existing = await getDocument(`readings/${readingFile}`);
+  if (existing) throw new Error("同名 Reading 已存在");
+  const items = JSON.parse(inboxDoc.content) as InboxItem[];
+  const indexes = [...new Set(inboxIndexes)].sort((a, b) => b - a);
+  if (!indexes.length || indexes.some(index => !Number.isInteger(index) || index < 0 || index >= items.length)) throw new Error("需要指定有效的 Inbox 条目");
+  for (const index of indexes) items.splice(index, 1);
+  await saveDocument(`readings/${readingFile}`, "reading", reading);
+  await saveDocument("inbox.yaml", "inbox", items, inboxVersion);
+}

@@ -1,4 +1,4 @@
 interface:
   display_name: "Read Add"
-  short_description: "Add confirmed sources to inbox"
+  short_description: "Add confirmed sources to cloud Inbox"
   default_prompt: "Use $read-add to add these confirmed sources to my reading inbox."
