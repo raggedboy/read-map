@@ -55,6 +55,7 @@ type MapState = {
 };
 
 type EntryChange = { path: number[]; progress?: number; notes?: string };
+type SaveActivity = { file: string; phase: "pending" | "saving" | "saved"; count: number };
 
 function updateEntry(entries: Entry[], path: number[], depth: number, change: EntryChange): Entry[] {
   const index = path[depth];
@@ -508,9 +509,11 @@ function EntryRow({ entry, reading, depth, disabled, onUpdate }: {
   );
 }
 
-function Detail({ reading, disabled, onBack, onUpdate }: {
+function Detail({ reading, disabled, saveActivity, onSaveNow, onBack, onUpdate }: {
   reading: Reading;
   disabled: boolean;
+  saveActivity: SaveActivity | null;
+  onSaveNow: () => void;
   onBack: () => void;
   onUpdate: (path: number[], change: { progress?: number; notes?: string }) => Promise<void>;
 }) {
@@ -529,10 +532,19 @@ function Detail({ reading, disabled, onBack, onUpdate }: {
           <h1>{reading.title}</h1>
           <p>{[reading.author, reading.version].filter(Boolean).join(" · ")}</p>
         </div>
-        <div className="stats">
-          <div><strong>{reading.leafCount}</strong><span>阅读单元</span></div>
-          <div><strong>{reading.completedCount}</strong><span>已完成</span></div>
-          <div><strong>{reading.progress}%</strong><span>总进度</span></div>
+        <div className="detail-status">
+          {saveActivity && (
+            <button className={`save-activity ${saveActivity.phase}`} disabled={saveActivity.phase !== "pending"} onClick={onSaveNow}>
+              {saveActivity.phase === "saving" && <i aria-hidden="true" />}
+              <span>{saveActivity.phase === "pending" ? `待保存 ${saveActivity.count} 项` : saveActivity.phase === "saving" ? `正在保存 ${saveActivity.count} 项` : "✓ 已保存"}</span>
+              {saveActivity.phase === "pending" && <small>立即保存</small>}
+            </button>
+          )}
+          <div className="stats">
+            <div><strong>{reading.leafCount}</strong><span>阅读单元</span></div>
+            <div><strong>{reading.completedCount}</strong><span>已完成</span></div>
+            <div><strong>{reading.progress}%</strong><span>总进度</span></div>
+          </div>
         </div>
       </header>
       <StructureOverview entries={reading.children} />
@@ -562,11 +574,13 @@ function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageError, setMessageError] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveActivity, setSaveActivity] = useState<SaveActivity | null>(null);
   const [loading, setLoading] = useState(true);
   type Pending = { changes: Map<string, EntryChange>; sending: EntryChange[]; inFlight: boolean; failed: boolean; debounce?: ReturnType<typeof setTimeout>; max?: ReturnType<typeof setTimeout> };
   const pendingRef = useRef(new Map<string, Pending>());
   const stateRef = useRef<MapState | null>(null);
   const flushRef = useRef<(file: string, keepalive?: boolean) => Promise<void>>(async () => {});
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const setCurrentState = (source: MapState) => {
     let next = source;
@@ -637,7 +651,9 @@ function App() {
     }
     const key = path.join(".");
     pending.changes.set(key, { ...pending.changes.get(key), ...entryChange, path });
-    if (pending.failed) return;
+    if (pending.failed) { setSaveActivity(null); return; }
+    const count = pending.changes.size + pending.sending.length;
+    setSaveActivity({ file: reading.file, phase: pending.inFlight ? "saving" : "pending", count });
     if (pending.debounce) clearTimeout(pending.debounce);
     pending.debounce = setTimeout(() => void flushRef.current(reading.file), 2000);
     if (!pending.max) pending.max = setTimeout(() => void flushRef.current(reading.file), 10000);
@@ -654,6 +670,7 @@ function App() {
     const sending = [...pending.changes.values()];
     pending.sending = sending;
     pending.changes.clear();
+    setSaveActivity({ file, phase: "saving", count: sending.length });
     const reading = stateRef.current?.readings.find(item => item.file === file);
     if (!reading) { pending.inFlight = false; return; }
     try {
@@ -664,6 +681,11 @@ function App() {
       pending.sending = [];
       setCurrentState(next);
       setSaveError(null);
+      if (!pending.changes.size) {
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        setSaveActivity({ file, phase: "saved", count: sending.length });
+        savedTimerRef.current = setTimeout(() => setSaveActivity(current => current?.file === file && current.phase === "saved" ? null : current), 1500);
+      }
     } catch (error) {
       const merged = new Map<string, EntryChange>();
       for (const item of sending) merged.set(item.path.join("."), item);
@@ -671,6 +693,7 @@ function App() {
       pending.changes = merged;
       pending.sending = [];
       pending.failed = true;
+      setSaveActivity(null);
       setSaveError(error instanceof Error ? `后台保存失败：${error.message}` : "后台保存失败，请重试");
     } finally {
       pending.inFlight = false;
@@ -709,7 +732,7 @@ function App() {
       {state.readOnly && <div className="system-banner error"><strong>只读模式</strong>{state.errors.join("；")}</div>}
       {!state.readOnly && saveError && <div className="system-banner error"><span>{saveError}。页面上的修改仍然保留。</span><button className="button" onClick={() => void retrySaves()}>重试保存</button></div>}
       {!state.readOnly && !saveError && message && <div className={`system-banner ${messageError ? "error" : "success"}`}>{message}</div>}
-      {selected ? <Detail reading={selected} disabled={state.readOnly} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} /> : <Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} />}
+      {selected ? <Detail reading={selected} disabled={state.readOnly} saveActivity={saveActivity?.file === selected.file ? saveActivity : null} onSaveNow={() => void flushRef.current(selected.file)} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} /> : <Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} />}
     </>
   );
 }

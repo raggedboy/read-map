@@ -167,7 +167,21 @@ a { color: inherit; }
 
 .detail-shell { width: min(1240px, calc(100% - 36px)); min-height: 100vh; margin: 0 auto; padding: 34px 0 60px; }
 .back { margin-bottom: 26px; }
-.detail-header { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.detail-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.detail-status { display: flex; align-items: center; gap: 18px; }
+.stats { display: flex; align-items: center; gap: 18px; }
+.stats > div { display: grid; min-width: 62px; gap: 2px; text-align: right; }
+.stats strong { font: 650 18px Georgia, serif; }
+.stats span { color: var(--muted); font-size: 10px; }
+.save-activity { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid #cfd9d2; border-radius: 999px; color: var(--green); background: var(--green-soft); font-size: 11px; font-weight: 800; }
+.save-activity.pending { cursor: pointer; }
+.save-activity.pending:hover { border-color: var(--green); background: #dce9e0; }
+.save-activity:disabled { opacity: 1; }
+.save-activity small { padding-left: 7px; border-left: 1px solid #b9cbbf; color: #607168; font-size: 9px; }
+.save-activity.saving { color: var(--muted); background: #f4f3ee; }
+.save-activity.saving i { width: 11px; height: 11px; border: 2px solid #c9cec9; border-top-color: var(--green); border-radius: 50%; animation: save-spin .7s linear infinite; }
+.save-activity.saved { color: var(--green); background: transparent; }
+@keyframes save-spin { to { transform: rotate(360deg); } }
 .structure-overview { margin-bottom: 22px; padding: 20px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); box-shadow: 0 10px 30px rgba(31,40,34,.05); }
 .structure-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 15px; }
 .structure-heading h2, .structure-heading p { margin: 0; }
@@ -291,6 +305,7 @@ a.file-name:hover strong { color: var(--green); }
 
 @media (max-width: 900px) {
   .detail-header { align-items: stretch; flex-direction: column; }
+  .detail-status { justify-content: space-between; }
   .home-intro { grid-template-columns: 1fr 280px; }
   .focus-grid { grid-template-columns: 1fr; }
   .reading-queue { display: grid; grid-template-columns: 190px 1fr; column-gap: 25px; }
