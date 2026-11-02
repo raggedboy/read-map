@@ -643,7 +643,7 @@ function App() {
     if (!pending.max) pending.max = setTimeout(() => void flushRef.current(reading.file), 10000);
   };
 
-  flushRef.current = async (file: string, keepalive = false) => {
+  const flush = async (file: string, keepalive = false) => {
     const pending = pendingRef.current.get(file);
     if (!pending || pending.inFlight || !pending.changes.size || pending.failed) return;
     if (pending.debounce) clearTimeout(pending.debounce);
@@ -678,6 +678,8 @@ function App() {
       else if (!pending.changes.size) pendingRef.current.delete(file);
     }
   };
+
+  useEffect(() => { flushRef.current = flush; });
 
   const retrySaves = async () => {
     setSaveError(null);
