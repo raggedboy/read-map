@@ -13,9 +13,12 @@ async function request(path, options = {}) {
     },
   });
   const text = await response.text();
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("Read Map 授权无效。请通过 Sites connector 获取当前 Site 的短期授权；浏览器登录无法授权此客户端。");
+  }
   let body;
   try { body = JSON.parse(text); }
-  catch { throw new Error(`Read Map 返回了非 JSON 内容（${response.status}）。请检查 READ_MAP_AUTHORIZATION。`); }
+  catch { throw new Error(`Read Map 返回了非 JSON 内容（${response.status}）。不要尝试浏览器登录；请检查 Sites connector 与 READ_MAP_AUTHORIZATION。`); }
   if (!response.ok) throw new Error(body.error || `Read Map 请求失败（${response.status}）`);
   return body;
 }
@@ -52,10 +55,11 @@ async function main() {
     return request(`/api/readings/${encodeURIComponent(file)}/entries`, { method: "PATCH", body: JSON.stringify(payload) });
   }
   if (command === "promote") {
-    const state = await request("/api/state");
+    const inboxVersion = option("inbox-version");
+    if (!inboxVersion || !/^[1-9]\d*$/.test(inboxVersion)) throw new Error("promote 需要原始选择的 --inbox-version；请重新读取并确认后再提交。");
     const reading = await inputJson();
     const indexes = (option("inbox") || "").split(",").filter(Boolean).map(Number);
-    return request("/api/readings", { method: "POST", body: JSON.stringify({ file: option("file"), reading, inboxIndexes: indexes, inboxVersion: state.inboxVersion }) });
+    return request("/api/readings", { method: "POST", body: JSON.stringify({ file: option("file"), reading, inboxIndexes: indexes, inboxVersion }) });
   }
   throw new Error("用法：state | inbox add | record | promote");
 }

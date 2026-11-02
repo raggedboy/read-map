@@ -5,7 +5,7 @@ description: Research external books, articles, papers, repositories, or collect
 
 # Read Research
 
-Read `map/CONTRACT.md` completely. Keep cloud data unchanged.
+Read `map/CONTRACT.md` completely and establish Agent access before calling the Client. Keep cloud data unchanged.
 
 1. State the reading goal and inspect current readings with `node client/read-map-client.mjs state` to avoid duplicates.
 2. Identify each candidate exactly: title, author or owner, type, canonical link, relevant version, and concrete value.

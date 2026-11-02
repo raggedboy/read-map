@@ -19,6 +19,10 @@ function formatSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function resourceHref(path: string) {
+  return `/resources/${path.split("/").map(encodeURIComponent).join("/")}`;
+}
+
 export default function ManagePage() {
   const [state, setState] = useState<ManagementState | null>(null);
   const [message, setMessage] = useState("数据与源文件分开管理、分开导出。");
@@ -99,7 +103,15 @@ export default function ManagePage() {
       <section className="folder-panel" id="r2">
         <div className="folder-toolbar"><div><span className="folder-icon">R2</span><div><strong>源文件</strong><small>PDF、Markdown 与附件</small></div></div><div className="folder-actions"><button onClick={() => void exportResources()}>导出全部</button><label>上传文件<input hidden type="file" multiple onChange={event => { if (event.target.files) void uploadResources(event.target.files); }} /></label></div></div>
         <div className="file-list"><div className="file-row resource-file file-head"><span>名称</span><span>类型</span><span>大小</span><span>操作</span></div>
-          {state?.resources.map(resource => <div className="file-row resource-file" key={resource.path}><span className="file-name"><i>{resource.path.toLowerCase().endsWith(".pdf") ? "P" : "M"}</i><strong>{resource.path}</strong></span><span>{resource.path.split(".").at(-1)?.toUpperCase()}</span><span>{formatSize(resource.size)}</span><a href={`/resources/${resource.path.split("/").map(encodeURIComponent).join("/")}`} download>下载</a></div>)}
+          {state?.resources.map(resource => {
+            const href = resourceHref(resource.path);
+            const canPreview = /\.(pdf|md)$/i.test(resource.path);
+            return <div className="file-row resource-file" key={resource.path}>
+              <a className="file-name" href={href} target="_blank" rel="noreferrer"><i>{resource.path.toLowerCase().endsWith(".pdf") ? "P" : "M"}</i><strong>{resource.path}</strong></a>
+              <span>{resource.path.split(".").at(-1)?.toUpperCase()}</span><span>{formatSize(resource.size)}</span>
+              <span className="file-actions">{canPreview && <a href={href} target="_blank" rel="noreferrer">查看</a>}<a href={href} download>下载</a></span>
+            </div>;
+          })}
         </div>
       </section>
     </section>

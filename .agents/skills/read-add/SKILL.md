@@ -5,7 +5,7 @@ description: Add explicitly confirmed reading sources to the cloud Inbox. Use wh
 
 # Read Add
 
-Read `map/CONTRACT.md` completely.
+Read `map/CONTRACT.md` completely and establish Agent access before calling the Client.
 
 1. Accept only sources the user explicitly selected.
 2. Read current cloud state with `node client/read-map-client.mjs state` and deduplicate by canonical link or normalized title.

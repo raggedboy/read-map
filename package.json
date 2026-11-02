@@ -10,10 +10,11 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
     "build": "bash scripts/build-verified.sh",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
-    "read-map": "node client/read-map-client.mjs"
+    "read-map": "node client/read-map-client.mjs",
+    "test:mcp": "node --test tests/mcp.test.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
@@ -42,5 +43,5 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "阅读地图"
+  "displayName": "\u9605\u8bfb\u5730\u56fe"
 }

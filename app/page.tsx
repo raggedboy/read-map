@@ -54,6 +54,46 @@ type MapState = {
   readings: Reading[];
 };
 
+type EntryChange = { path: number[]; progress?: number; notes?: string };
+
+function updateEntry(entries: Entry[], path: number[], depth: number, change: EntryChange): Entry[] {
+  const index = path[depth];
+  if (!Number.isInteger(index) || !entries[index]) return entries;
+  return entries.map((entry, current) => {
+    if (current !== index) return entry;
+    const next = { ...entry };
+    if (depth === path.length - 1) {
+      if (change.progress !== undefined) next.progress = change.progress;
+      if (change.notes !== undefined) next.notes = change.notes.trim() || null;
+    } else if (next.children) next.children = updateEntry(next.children, path, depth + 1, change);
+    if (next.children?.length) next.derivedProgress = Math.round(next.children.reduce((sum, child) => sum + child.derivedProgress, 0) / next.children.length);
+    else next.derivedProgress = next.progress ?? 0;
+    return next;
+  });
+}
+
+function applyReadingChange(reading: Reading, change: EntryChange): Reading {
+  const next = { ...reading };
+  if (!change.path.length) {
+    if (change.progress !== undefined) next.progress = change.progress;
+    if (change.notes !== undefined) next.notes = change.notes.trim() || null;
+  } else next.children = updateEntry(reading.children, change.path, 0, change);
+  const leaves: Entry[] = [];
+  const collect = (entries: Entry[]) => entries.forEach(entry => entry.children?.length ? collect(entry.children) : leaves.push(entry));
+  collect(next.children);
+  if (next.children.length) next.progress = Math.round(next.children.reduce((sum, entry) => sum + entry.derivedProgress, 0) / next.children.length);
+  next.leafCount = next.children.length ? leaves.length : 1;
+  next.completedCount = next.children.length ? leaves.filter(entry => (entry.progress ?? 0) === 100).length : next.progress === 100 ? 1 : 0;
+  next.status = next.progress === 100 ? "completed" : next.progress > 0 ? "reading" : "unstarted";
+  return next;
+}
+
+function applyChanges(state: MapState, file: string, changes: Iterable<EntryChange>): MapState {
+  let readings = state.readings;
+  for (const change of changes) readings = readings.map(reading => reading.file === file ? applyReadingChange(reading, change) : reading);
+  return { ...state, readings };
+}
+
 function DataImporter({ onImported, compact = false }: { onImported: (state: MapState) => void; compact?: boolean }) {
   const [status, setStatus] = useState(compact ? "重复选择原 ZIP，只补传缺失文件。" : "选择 read-map-data.zip，一次性迁移目录与源文件。");
   const [busy, setBusy] = useState(false);
@@ -138,7 +178,11 @@ async function api(path: string, options?: RequestInit): Promise<MapState> {
   let payload: MapState & { error?: string };
   try { payload = JSON.parse(text) as MapState & { error?: string }; }
   catch { throw new Error(response.ok ? "服务器返回了无法识别的内容" : `请求失败（${response.status}），请稍后重试`); }
-  if (!response.ok) throw new Error(payload.error || "操作失败");
+  if (!response.ok) {
+    const error = new Error(payload.error || "操作失败") as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
   return payload;
 }
 
@@ -516,17 +560,32 @@ function App() {
   const [state, setState] = useState<MapState | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageError, setMessageError] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  type Pending = { changes: Map<string, EntryChange>; sending: EntryChange[]; inFlight: boolean; failed: boolean; debounce?: ReturnType<typeof setTimeout>; max?: ReturnType<typeof setTimeout> };
+  const pendingRef = useRef(new Map<string, Pending>());
+  const stateRef = useRef<MapState | null>(null);
+  const flushRef = useRef<(file: string, keepalive?: boolean) => Promise<void>>(async () => {});
+
+  const setCurrentState = (source: MapState) => {
+    let next = source;
+    for (const [file, pending] of pendingRef.current) next = applyChanges(applyChanges(next, file, pending.sending), file, pending.changes.values());
+    stateRef.current = next;
+    setState(next);
+  };
 
   const refresh = async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
       const next = await api("/api/state");
-      setState(next);
+      setCurrentState(next);
       setSelectedFile(current => current && next.readings.some(reading => reading.file === current) ? current : null);
       setMessage(null);
+      setMessageError(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
+      setMessageError(true);
     } finally {
       if (!quiet) setLoading(false);
     }
@@ -535,8 +594,17 @@ function App() {
   useEffect(() => {
     void refresh();
     const onFocus = () => void refresh(true);
+    const flushOnLeave = () => {
+      if (document.visibilityState === "hidden") for (const file of pendingRef.current.keys()) void flushRef.current(file, true);
+    };
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", flushOnLeave);
+    window.addEventListener("pagehide", flushOnLeave);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", flushOnLeave);
+      window.removeEventListener("pagehide", flushOnLeave);
+    };
   }, []);
 
   const selected = useMemo(() => state?.readings.find(reading => reading.file === selectedFile) || null, [state, selectedFile]);
@@ -544,16 +612,83 @@ function App() {
   const perform = async (operation: () => Promise<MapState>, success: string) => {
     try {
       const next = await operation();
-      setState(next);
+      setCurrentState(next);
       setMessage(success);
+      setMessageError(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
+      setMessageError(true);
       await refresh(true);
     }
   };
 
   const update = async (reading: Reading, path: number[], change: { progress?: number; notes?: string }) => {
-    await perform(() => api(`/api/readings/${encodeURIComponent(reading.file)}/entries`, { method: "PATCH", body: JSON.stringify({ path, dataVersion: reading.dataVersion, ...change }) }), "已保存");
+    const entryChange: EntryChange = { path, ...change };
+    setState(current => {
+      if (!current) return current;
+      const next = applyChanges(current, reading.file, [entryChange]);
+      stateRef.current = next;
+      return next;
+    });
+    let pending = pendingRef.current.get(reading.file);
+    if (!pending) {
+      pending = { changes: new Map(), sending: [], inFlight: false, failed: false };
+      pendingRef.current.set(reading.file, pending);
+    }
+    const key = path.join(".");
+    pending.changes.set(key, { ...pending.changes.get(key), ...entryChange, path });
+    if (pending.failed) return;
+    if (pending.debounce) clearTimeout(pending.debounce);
+    pending.debounce = setTimeout(() => void flushRef.current(reading.file), 2000);
+    if (!pending.max) pending.max = setTimeout(() => void flushRef.current(reading.file), 10000);
+  };
+
+  flushRef.current = async (file: string, keepalive = false) => {
+    const pending = pendingRef.current.get(file);
+    if (!pending || pending.inFlight || !pending.changes.size || pending.failed) return;
+    if (pending.debounce) clearTimeout(pending.debounce);
+    if (pending.max) clearTimeout(pending.max);
+    pending.debounce = undefined;
+    pending.max = undefined;
+    pending.inFlight = true;
+    const sending = [...pending.changes.values()];
+    pending.sending = sending;
+    pending.changes.clear();
+    const reading = stateRef.current?.readings.find(item => item.file === file);
+    if (!reading) { pending.inFlight = false; return; }
+    try {
+      const next = await api(`/api/readings/${encodeURIComponent(file)}/entries`, {
+        method: "PATCH", keepalive,
+        body: JSON.stringify({ dataVersion: reading.dataVersion, changes: sending })
+      });
+      pending.sending = [];
+      setCurrentState(next);
+      setSaveError(null);
+    } catch (error) {
+      const merged = new Map<string, EntryChange>();
+      for (const item of sending) merged.set(item.path.join("."), item);
+      for (const [key, item] of pending.changes) merged.set(key, { ...merged.get(key), ...item, path: item.path });
+      pending.changes = merged;
+      pending.sending = [];
+      pending.failed = true;
+      setSaveError(error instanceof Error ? `后台保存失败：${error.message}` : "后台保存失败，请重试");
+    } finally {
+      pending.inFlight = false;
+      if (!pending.failed && pending.changes.size) void flushRef.current(file);
+      else if (!pending.changes.size) pendingRef.current.delete(file);
+    }
+  };
+
+  const retrySaves = async () => {
+    setSaveError(null);
+    try {
+      const next = await api("/api/state");
+      for (const pending of pendingRef.current.values()) pending.failed = false;
+      setCurrentState(next);
+      await Promise.all([...pendingRef.current.keys()].map(file => flushRef.current(file)));
+    } catch (error) {
+      setSaveError(error instanceof Error ? `重试失败：${error.message}` : "重试失败");
+    }
   };
 
   const removeInbox = async (index: number) => {
@@ -570,7 +705,8 @@ function App() {
   return (
     <>
       {state.readOnly && <div className="system-banner error"><strong>只读模式</strong>{state.errors.join("；")}</div>}
-      {!state.readOnly && message && <div className="system-banner success">{message}</div>}
+      {!state.readOnly && saveError && <div className="system-banner error"><span>{saveError}。页面上的修改仍然保留。</span><button className="button" onClick={() => void retrySaves()}>重试保存</button></div>}
+      {!state.readOnly && !saveError && message && <div className={`system-banner ${messageError ? "error" : "success"}`}>{message}</div>}
       {selected ? <Detail reading={selected} disabled={state.readOnly} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} /> : <Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} />}
     </>
   );

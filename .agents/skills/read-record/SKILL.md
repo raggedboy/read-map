@@ -5,7 +5,7 @@ description: Record explicitly stated cloud reading progress or notes. Use when 
 
 # Read Record
 
-Read `map/CONTRACT.md` completely.
+Read `map/CONTRACT.md` completely and establish Agent access before calling the Client.
 
 1. Read cloud state with `node client/read-map-client.mjs state`.
 2. Resolve the user's title path to exactly one Reading file and recursive numeric path. Ask when ambiguous.
