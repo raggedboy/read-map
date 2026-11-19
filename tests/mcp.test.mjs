@@ -44,13 +44,13 @@ function request(method, params, identity = "owner") {
 }
 const reading = { title: "A reading", type: "book", children: [{ title: "Chapter", type: "section" }] };
 
-test("discovery has eight narrow tools and never accesses storage", async () => {
+test("discovery has nine narrow tools and never accesses storage", async () => {
   const data = new Proxy({}, { get() { throw new Error("Storage touched"); } });
   for (const method of ["initialize", "tools/list"]) {
     const res = await handleMcp(request(method, {}, null), data);
     assert.equal(res.status, 200); const body = await res.json(); assert.ok(body.result);
   }
-  assert.equal(tools.length, 8);
+  assert.equal(tools.length, 9);
   for (const tool of tools) assert.equal(tool.inputSchema.additionalProperties, false);
 });
 test("data calls require trusted user ID; email and argument identity do not count", async () => {
@@ -265,4 +265,18 @@ test("concurrent restores claim one current version and identical restores do no
   const remaining = outcomes[0].status === "rejected" ? a : b;
   await Promise.all([data.restoreInboxItem(remaining.deletionId, "5"), data.restoreInboxItem(remaining.deletionId, "5")]);
   assert.equal((await data.state()).inbox.length, 2); assert.equal((await data.state()).inboxVersion, "6"); sqlite.close();
+});
+
+test("delete only the selected root, retaining nested copies", async () => {
+  const { data, sqlite } = await fixture();
+  await data.saveDocument("readings/a.yaml", "reading", reading);
+  await data.saveDocument("readings/b.yaml", "reading", { title: "Collection", type: "collection", children: [reading] });
+  const before = await data.state();
+  await assert.rejects(data.deleteReading("a.yaml", "2", reading.title));
+  await assert.rejects(data.deleteReading("a.yaml", "1", "Other"));
+  assert.deepEqual(await data.state(), before);
+  const response = await handleMcp(request("tools/call", { name: "read_map_delete_reading",
+    arguments: { file: "a.yaml", dataVersion: "1", expectedTitle: reading.title } }), data);
+  assert.deepEqual((await response.json()).result.structuredContent, { ...before, readings: before.readings.slice(1) });
+  sqlite.close();
 });

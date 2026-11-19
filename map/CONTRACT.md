@@ -94,3 +94,5 @@ Deletion is recoverable, not a purge. The additive `0002_new_mesmero.sql` migrat
 Identical successful deletion retries return the same receipt without deleting again, even after subsequent edits or restoration. An identical successful restoration retry (same deletion ID and original restoration version) is a no-op. Retain receipts and backups after restoration to preserve this guarantee. Never silently refresh a stale version and retry an old deletion selection: read, reselect, and obtain approval for the changed selection instead.
 
 All three tools use the same authenticated owner-private MCP boundary. They do not add a public HTTP deletion route or extend the service-access CLI. Unit tests use isolated SQLite fixtures only; do not perform a real deletion merely to smoke-test deployment.
+
+`read_map_delete_reading({ file, dataVersion, expectedTitle })` permanently removes the explicitly selected top-level Reading only. Pass its exact root title and original version. Re-read state after an uncertain result.

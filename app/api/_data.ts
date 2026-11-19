@@ -301,3 +301,13 @@ export async function restoreInboxItem(id: string, inboxVersion: string) {
   if (!restored?.restored_at || String(restored.restore_inbox_version) !== inboxVersion) throw new Error("Inbox version is stale; read current state before restoring");
   return { deletionId: id };
 }
+
+export async function deleteReading(file: string, dataVersion: string, expectedTitle: string) {
+  filename(file);
+  validateVersion(dataVersion);
+  if (typeof expectedTitle !== "string" || !expectedTitle.trim()) throw new Error("Missing original title");
+  const result = await env.DB.prepare(
+    "DELETE FROM map_documents WHERE kind = 'reading' AND path = ? AND version = ? AND json_extract(content, '$.title') = ?"
+  ).bind(`readings/${file}`, Number(dataVersion), expectedTitle).run();
+  if (!result.meta.changes) throw new Error("Reading selection changed or no longer exists");
+}

@@ -53,7 +53,7 @@ test("production Worker routes MCP discovery and rejects unauthenticated data ac
   for (const [method, params, expected] of [
     ["initialize", { protocolVersion: "2025-06-18" }, 200],
     ["tools/list", {}, 200],
-    ...["read_map_state", "read_map_delete_inbox", "read_map_deleted_inbox", "read_map_restore_inbox"].map(name => ["tools/call", { name, arguments: {} }, 401])
+    ...["read_map_state", "read_map_delete_inbox", "read_map_delete_reading", "read_map_deleted_inbox", "read_map_restore_inbox"].map(name => ["tools/call", { name, arguments: {} }, 401])
   ]) {
     const response = await worker.fetch(new Request("http://localhost/mcp", {
       method: "POST", headers: { "content-type": "application/json" },
@@ -63,7 +63,7 @@ test("production Worker routes MCP discovery and rejects unauthenticated data ac
     const body = await response.json();
     if (method === "tools/list") assert.deepEqual(body.result.tools.map(tool => tool.name).sort(), [
       "read_map_state", "read_map_add_inbox", "read_map_promote", "read_map_record", "read_map_edit_reading",
-      "read_map_delete_inbox", "read_map_deleted_inbox", "read_map_restore_inbox"
+      "read_map_delete_inbox", "read_map_delete_reading", "read_map_deleted_inbox", "read_map_restore_inbox"
     ].sort());
     if (method === "initialize") assert.equal(body.result.protocolVersion, "2025-06-18");
     if (expected === 401) assert.equal(body.error.code, -32001);
