@@ -280,3 +280,14 @@ test("delete only the selected root, retaining nested copies", async () => {
   assert.deepEqual((await response.json()).result.structuredContent, { ...before, readings: before.readings.slice(1) });
   sqlite.close();
 });
+
+test("whole-Reading edit requires an explicit title and excludes structural edits", async () => {
+  const { data, sqlite } = await fixture();
+  await data.saveDocument("readings/a.yaml", "reading", reading);
+  const args = { file: "a.yaml", dataVersion: "1", deleteReadingWithTitle: reading.title };
+  const edit = async args => (await (await handleMcp(request("tools/call",
+    { name: "read_map_edit_reading", arguments: args }), data)).json()).result;
+  assert.equal((await edit({ ...args, removePaths: [[0]] })).isError, true);
+  assert.deepEqual((await edit(args)).structuredContent.readings, []);
+  sqlite.close();
+});

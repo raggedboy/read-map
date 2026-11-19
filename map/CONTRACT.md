@@ -96,3 +96,4 @@ Identical successful deletion retries return the same receipt without deleting a
 All three tools use the same authenticated owner-private MCP boundary. They do not add a public HTTP deletion route or extend the service-access CLI. Unit tests use isolated SQLite fixtures only; do not perform a real deletion merely to smoke-test deployment.
 
 `read_map_delete_reading({ file, dataVersion, expectedTitle })` permanently removes the explicitly selected top-level Reading only. Pass its exact root title and original version. Re-read state after an uncertain result.
+The same deletion is available through `read_map_edit_reading({ file, dataVersion, deleteReadingWithTitle })`, mutually exclusive with append and removePaths.
