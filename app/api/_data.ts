@@ -30,13 +30,13 @@ function entryView(node: ReadingNode, path: number[]): any {
   const children = source?.map((child, index) => entryView(child, [...path, index]));
   return { ...fields, path, derivedProgress: Math.round(progressOf(node)), leaf: !children?.length, ...(children?.length ? { children } : {}) };
 }
-function readingView(doc: Stored) {
+function readingView(doc: Stored & { updated_at: string }) {
   const reading = JSON.parse(doc.content) as ReadingNode;
   const children = reading.children || [];
   const leaves = children.length ? flatten(children) : [reading];
   const progress = Math.round(progressOf(reading));
   return {
-    ...reading, file: doc.path.replace(/^readings\//, ""), dataVersion: String(doc.version),
+    ...reading, lastSavedAt: doc.updated_at, file: doc.path.replace(/^readings\//, ""), dataVersion: String(doc.version),
     progress, status: progress === 100 && leaves.length ? "completed" : progress > 0 ? "reading" : "unstarted",
     leafCount: leaves.length, completedCount: leaves.filter(node => node.progress === 100).length,
     children: children.map((node, index) => entryView(node, [index]))
@@ -44,7 +44,7 @@ function readingView(doc: Stored) {
 }
 export async function state() {
   await ensureSchema();
-  const docs = await env.DB.prepare("SELECT path, kind, content, version FROM map_documents ORDER BY path").all<Stored>();
+  const docs = await env.DB.prepare("SELECT path, kind, content, version, updated_at FROM map_documents ORDER BY path").all<Stored & { updated_at: string }>();
   const inboxDoc = docs.results.find(doc => doc.path === "inbox.yaml");
   return {
     initialized: docs.results.length > 0, readOnly: false, errors: [],

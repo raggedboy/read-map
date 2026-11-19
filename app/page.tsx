@@ -38,6 +38,7 @@ type Reading = {
   notes?: string | null;
   file: string;
   dataVersion: string;
+  lastSavedAt: string;
   progress: number;
   status: "unstarted" | "reading" | "completed";
   leafCount: number;
@@ -533,6 +534,10 @@ function Detail({ reading, disabled, saveActivity, onSaveNow, onBack, onUpdate }
           <p>{[reading.author, reading.version].filter(Boolean).join(" · ")}</p>
         </div>
         <div className="detail-status">
+          <div className="save-panel">
+            <time dateTime={reading.lastSavedAt}>上次保存 {new Date(reading.lastSavedAt).toLocaleString("zh-CN", {
+              year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+            })}</time>
           {saveActivity && (
             <button className={`save-activity ${saveActivity.phase}`} disabled={saveActivity.phase !== "pending"} onClick={onSaveNow}>
               {saveActivity.phase === "saving" && <i aria-hidden="true" />}
@@ -540,6 +545,7 @@ function Detail({ reading, disabled, saveActivity, onSaveNow, onBack, onUpdate }
               {saveActivity.phase === "pending" && <small>立即保存</small>}
             </button>
           )}
+          </div>
           <div className="stats">
             <div><strong>{reading.leafCount}</strong><span>阅读单元</span></div>
             <div><strong>{reading.completedCount}</strong><span>已完成</span></div>
