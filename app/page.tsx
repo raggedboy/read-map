@@ -29,6 +29,8 @@ type Entry = {
 };
 
 type Reading = {
+  published?: string | null;
+  image?: string | null;
   tags?: string[];
   related?: string[];
   title: string;
@@ -228,6 +230,33 @@ function ReadingCard({ reading, onOpen }: { reading: Reading; onOpen: () => void
   );
 }
 
+function Timeline({ readings, onOpen, oldest }: { readings: Reading[]; onOpen: (file: string) => void; oldest: boolean }) {
+  const sorted = [...readings].sort((a, b) => {
+    if (!a.published || !b.published) return Number(!a.published) - Number(!b.published);
+    return (oldest ? 1 : -1) * a.published.localeCompare(b.published);
+  });
+  const groups = new Map<string, Reading[]>();
+  for (const reading of sorted) {
+    const year = reading.published?.slice(0, 4) || "日期待考";
+    if (!groups.has(year)) groups.set(year, []);
+    groups.get(year)!.push(reading);
+  }
+  return <div className="source-timeline">{Array.from(groups, ([year, works]) =>
+    <section className="timeline-year" key={year}>
+      <h3>{year}</h3>
+      <div className="timeline-works">{works.map(r => <button key={r.file} className="timeline-work" onClick={() => onOpen(r.file)}>
+        <span className="timeline-copy">
+          <span className="timeline-meta">{r.published && <time dateTime={r.published}>{r.published.replace(/-/g, ".")}</time>}{TYPE_LABELS[r.type] || r.type}</span>
+          <strong>{r.title}</strong>
+          <span className="timeline-byline">{[r.author, ...(r.tags || [])].filter(Boolean).join(" · ")}</span>
+          <span className="timeline-progress"><ProgressBar value={r.progress} />{r.progress}%</span>
+        </span>
+        {r.image && <img key={r.image} src={sourceHref(r.image)} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.hidden = true; }} />}
+      </button>)}</div>
+    </section>
+  )}</div>;
+}
+
 function FilterGroup({ label, options, selected, onChange }: {
   label: string; options: { value: string; label: string }[]; selected: string[];
   onChange: (values: string[]) => void;
@@ -248,6 +277,14 @@ function FilterGroup({ label, options, selected, onChange }: {
 }
 
 function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file: string) => void; onDelete: (index: number) => void }) {
+  const [mode, setMode] = useState("cards");
+  const [oldest, setOldest] = useState(false);
+  useEffect(() => {
+    try {
+      setMode(localStorage.getItem("read-map-view") === "timeline" ? "timeline" : "cards");
+      setOldest(localStorage.getItem("read-map-order") === "oldest");
+    } catch {}
+  }, []);
   const [filter, setFilter] = useState<"all" | Reading["status"]>("all");
   const [query, setQuery] = useState("");
   const [topics, setTopics] = useState<string[]>([]);
@@ -350,10 +387,19 @@ function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file:
               {hasFilters && <button type="button" onClick={clearFilters}>清除筛选</button>}
             </div>
           </div>
-          <div className="reading-grid">
+          <div className="library-view">
+            <div className="filter-tabs" role="group" aria-label="展示方式">{[["cards", "卡片"], ["timeline", "时间轴"]].map(([id, label]) =>
+              <button key={id} className={mode === id ? "active" : ""} aria-pressed={mode === id} onClick={() => {
+                setMode(id); try { localStorage.setItem("read-map-view", id); } catch {}
+              }}>{label}</button>)}</div>
+            {mode === "timeline" && <select aria-label="资源时间排序" value={oldest ? "oldest" : "newest"} onChange={e => {
+              setOldest(e.target.value === "oldest"); try { localStorage.setItem("read-map-order", e.target.value); } catch {}
+            }}><option value="newest">最新优先</option><option value="oldest">最早优先</option></select>}
+          </div>
+          {mode === "timeline" && visible.length > 0 ? <Timeline readings={visible} onOpen={onOpen} oldest={oldest} /> : <div className="reading-grid">
             {visible.map(reading => <ReadingCard key={reading.file} reading={reading} onOpen={() => onOpen(reading.file)} />)}
             {!visible.length && <EmptyCard>没有符合条件的阅读项目</EmptyCard>}
-          </div>
+          </div>}
         </section>
       </main>
     </div>

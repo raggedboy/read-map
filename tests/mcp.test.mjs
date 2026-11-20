@@ -310,3 +310,18 @@ test("extract preserves recorded chapters and rejects destination collisions ato
   assert.match(item.notes, /context/); assert.deepEqual(item.tags, ["Tag", "Other"]);
   sqlite.close();
 });
+
+test("timeline metadata preserves date precision and supports versioned partial edits", async () => {
+  const { data, sqlite } = await fixture();
+  await data.promoteInbox("a.yaml", { ...reading, published: "2024" }, [0], "2");
+  await data.updatePresentation("a.yaml", "1", { image: "resources/cover.png" });
+  await assert.rejects(data.updatePresentation("a.yaml", "1", { published: "2024-02" }));
+  await assert.rejects(data.updatePresentation("a.yaml", "2", { published: "2023-02-29" }));
+  assert.equal((await data.state()).readings[0].published, "2024");
+  await data.updatePresentation("a.yaml", "2", { published: "2024-02", image: null });
+  const result = (await data.state()).readings[0];
+  assert.equal(result.published, "2024-02");
+  assert.equal(result.image, undefined);
+  assert.equal(result.children[0].title, "Chapter");
+  sqlite.close();
+});

@@ -409,3 +409,20 @@ a.file-name:hover strong { color: var(--green); }
   .facet-row { grid-template-columns: 1fr; gap: 5px; }
   .facet-options button { min-height: 40px; }
 }
+
+.library-view { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 1rem 0; }
+.library-view select { font: inherit; color: inherit; background: white; padding: .4rem .6rem; border: 1px solid var(--line, #d9dfd9); border-radius: .5rem; }
+.timeline-year { display: grid; grid-template-columns: minmax(5rem, 14%) 1fr; gap: 1rem; margin: 1.6rem 0; }
+.timeline-year h3 { font: 600 clamp(1.25rem, 3vw, 2.1rem)/1.2 Georgia, serif; color: var(--green); margin: .3rem 0; }
+.timeline-works { border-left: 1px solid #b8c8bf; padding-left: 1.2rem; display: grid; gap: .8rem; min-width: 0; }
+.timeline-work { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 1rem; text-align: left; color: inherit; font: inherit; background: white; padding: 1rem 1.2rem; border: 1px solid #dce4dd; border-radius: .8rem; cursor: pointer; }
+.timeline-work::before { position: absolute; content: ''; top: 1.7rem; left: -1.5rem; width: .5rem; height: .5rem; border-radius: 50%; background: var(--green); }
+.timeline-work:hover, .timeline-work:focus-visible { border-color: var(--green); }
+.timeline-copy { display: grid; gap: .4rem; min-width: 0; overflow-wrap: anywhere; }
+.timeline-copy strong { font-size: 1.15rem; }
+.timeline-meta, .timeline-byline, .timeline-progress { font-size: .86rem; color: #51645a; }
+.timeline-meta time { color: var(--green); font-weight: 700; font-variant-numeric: tabular-nums; margin-right: .75rem; }
+.timeline-work img { width: clamp(3rem, 10vw, 7rem); max-height: 6rem; object-fit: contain; border-radius: .35rem; }
+.timeline-progress { display: flex; align-items: center; gap: .5rem; }
+.timeline-progress .progress-bar { width: 4.5rem; }
+@media (max-width: 620px) { .timeline-year { grid-template-columns: 1fr; gap: .6rem; } .timeline-works { margin-left: .3rem; } }

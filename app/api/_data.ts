@@ -1,13 +1,15 @@
 import { env } from "cloudflare:workers";
-import { validateOrganization, filename, indexes as validateIndexes, validateNode, version as validateVersion } from "../../map/validation";
+import { validatePresentation, validateOrganization, filename, indexes as validateIndexes, validateNode, version as validateVersion } from "../../map/validation";
 
 export type ReadingNode = {
+  published?: string | null; image?: string | null;
   tags?: string[]; related?: string[];
   title: string; type: string; author?: string | null; version?: string | null;
   description?: string | null; link?: string | null; progress?: number;
   notes?: string | null; children?: ReadingNode[];
 };
 export type InboxItem = {
+  published?: string | null; image?: string | null;
   title: string; type: "collection" | "book" | "article" | "talk" | "blog" | "paper" | "repo";
   author?: string | null; link?: string | null; version?: string | null;
   description?: string | null; added?: string | null;
@@ -313,6 +315,18 @@ export async function deleteReading(file: string, dataVersion: string, expectedT
     `DELETE FROM map_documents WHERE kind = 'reading' AND path = ? AND version = ? AND json_extract(content, '$.title') = ? AND ${noIncomingLinks}`
   ).bind(`readings/${file}`, Number(dataVersion), expectedTitle, file).run();
   if (!result.meta.changes) throw new Error("Reading selection changed, no longer exists, or is linked from another work");
+}
+
+export async function updatePresentation(file: string, dataVersion: string, metadata: Record<string, unknown>) {
+  filename(file);
+  validateVersion(dataVersion);
+  validatePresentation(metadata);
+  if (!Object.keys(metadata).length) throw new Error("Missing presentation metadata");
+  const result = await env.DB.prepare(`
+    UPDATE map_documents SET content = json_patch(content, ?), version = version + 1, updated_at = ?
+    WHERE path = ? AND kind = 'reading' AND version = ?`)
+    .bind(JSON.stringify(metadata), new Date().toISOString(), `readings/${file}`, Number(dataVersion)).run();
+  if (!result.meta.changes) throw new Error("阅读标的已变更，请刷新");
 }
 
 export async function organizeReading(file: string, dataVersion: string, tags: string[], related: string[]) {
