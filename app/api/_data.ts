@@ -114,9 +114,10 @@ function canonical(value: any): string {
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
   return JSON.stringify(value);
 }
-export async function promoteInbox(readingFile: string, reading: ReadingNode, inboxIndexes: number[], inboxVersion: string) {
+export async function promoteInbox(readingFile: string, reading: ReadingNode, inboxIndexes: number[], inboxVersion: string, batchId?: string) {
   filename(readingFile); validateNode(reading); validateIndexes(inboxIndexes); validateVersion(inboxVersion);
   await ensureSchema();
+  if (batchId !== undefined && (typeof batchId !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(batchId))) throw new Error("Invalid batchId");
   const selected = [...inboxIndexes].sort((a, b) => a - b);
   const bytes = new TextEncoder().encode(canonical({ readingFile, reading, selected, inboxVersion }));
   const id = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), byte => byte.toString(16).padStart(2, "0")).join("");
@@ -143,7 +144,7 @@ export async function promoteInbox(readingFile: string, reading: ReadingNode, in
     env.DB.prepare("INSERT INTO map_operations(id, created_at) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM map_documents WHERE path = 'inbox.yaml' AND version = ?) AND NOT EXISTS (SELECT 1 FROM map_documents WHERE path = ?) ON CONFLICT(id) DO NOTHING")
       .bind(id, now, Number(inboxVersion), key),
     env.DB.prepare("INSERT INTO map_documents(path, kind, content, version, updated_at) SELECT ?, 'reading', ?, 1, ? WHERE changes() = 1")
-      .bind(key, JSON.stringify(reading), now),
+      .bind(key, JSON.stringify({ ...reading, addedAt: now, batchId: batchId ?? id }), now),
     env.DB.prepare("UPDATE map_documents SET content = ?, version = version + 1, updated_at = ? WHERE path = 'inbox.yaml' AND version = ? AND changes() = 1")
       .bind(JSON.stringify(remaining), now, Number(inboxVersion))
   ]);
@@ -231,7 +232,8 @@ export async function editReading(file: string, dataVersion: string, append: { p
   }
   prune(root, []);
   if (parent && append) { parent.children = [...(parent.children || []), ...append.children]; delete parent.progress; }
-  validateNode(root);
+  const { addedAt, batchId, ...editable } = root as ReadingNode & { addedAt?: string; batchId?: string };
+  validateNode(editable);
   await saveDocument(key, "reading", root, dataVersion);
 }
 
@@ -371,7 +373,7 @@ export async function extractReadings(file: string, dataVersion: string, selecti
       if (context) work.notes = [work.notes, `原合集《${root.title}》\n${context}`].filter(Boolean).join("\n\n");
     }
     return env.DB.prepare("INSERT INTO map_documents(path, kind, content, version, updated_at) SELECT ?, 'reading', ?, 1, ? WHERE EXISTS (SELECT 1 FROM map_documents WHERE path = ? AND version = ? AND kind = 'reading')")
-      .bind(`readings/${selection.file}`, JSON.stringify(work), updated, doc.path, Number(dataVersion));
+      .bind(`readings/${selection.file}`, JSON.stringify({ ...work, addedAt: updated, batchId: updated }), updated, doc.path, Number(dataVersion));
   });
   const finish = remaining.length
     ? env.DB.prepare("UPDATE map_documents SET content = ?, version = version + 1, updated_at = ? WHERE path = ? AND version = ?").bind(JSON.stringify({ ...root, children: remaining, related: [...new Set([...(root.related || []), ...selections.map(s => s.file)])] }), updated, doc.path, Number(dataVersion))

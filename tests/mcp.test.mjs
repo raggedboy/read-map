@@ -325,3 +325,24 @@ test("timeline metadata preserves date precision and supports versioned partial 
   assert.equal(result.children[0].title, "Chapter");
   sqlite.close();
 });
+
+test("a promotion batch shares an id and keeps its addition time through edits and retries", async () => {
+  const { data, sqlite } = await fixture();
+  const promote = async (file, inboxVersion) => {
+    const res = await handleMcp(request("tools/call", { name: "read_map_promote",
+      arguments: { file, reading, inboxIndexes: [0], inboxVersion, batchId: "two-works" }
+    }), data);
+    assert.equal((await res.json()).result.isError, false);
+  };
+  await promote("a.yaml", "2");
+  await promote("b.yaml", "3");
+  const before = (await data.state()).readings;
+  for (const work of before) {
+    assert.equal(work.batchId, "two-works");
+    assert.ok(Number.isFinite(Date.parse(work.addedAt)));
+  }
+  await data.recordEntry("a.yaml", [0], "1", 50);
+  await promote("a.yaml", "2");
+  assert.deepEqual((await data.state()).readings.map(r => r.addedAt), before.map(r => r.addedAt));
+  sqlite.close();
+});

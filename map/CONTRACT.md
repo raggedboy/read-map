@@ -69,7 +69,7 @@ R2-backed resources use logical links beginning with `resources/`, such as `reso
 
 - `add`: append a confirmed, deduplicated Inbox item.
 - `record`: update only an explicitly selected node's progress or notes.
-- `promote`: after explicit approval, create one Reading and remove the selected Inbox items, or use `read_map_edit_reading` to apply approved structural edits to an existing Reading. CLI creation requires `--inbox-version <original-version>` captured with the selected indexes.
+- `promote`: on an explicit promotion request for identified sources, directly create one Reading and remove the selected Inbox items, or use `read_map_edit_reading` to apply approved structural edits to an existing Reading. CLI creation requires `--inbox-version <original-version>` captured with the selected indexes.
 - `recommend` and `research`: read-only.
 
 All writes use the latest document version and reject stale updates.
@@ -105,3 +105,5 @@ Use read_map_edit_reading with organize: {tags, related} to replace root metadat
 Inbox sources and Reading roots may carry `published` (verified edition publication, first article publication, or talk delivery date) and `image` (source cover or organization logo, HTTPS or a logical resources/ path). Keep the available precision: YYYY, YYYY-MM or YYYY-MM-DD. Omit unknown values. Timeline order uses published, with undated works last in either direction. On an existing Reading, use read_map_edit_reading with presentation and the original dataVersion. Omitted fields are preserved; null clears that field.
 
 Set optional imageRole to identity for a compact portrait or logo, or content for a full-width source image (default). Supply the role together with a replacement image. Timeline headings group works by known year and month.
+
+An explicit /promote authorizes the write. Preview only when requested. Each new promotion records server-assigned addedAt and a batchId. Use one fresh batchId per multi-work request. Legacy records with unknown addition times remain undated.

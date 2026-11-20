@@ -29,6 +29,8 @@ type Entry = {
 };
 
 type Reading = {
+  addedAt?: string;
+  batchId?: string;
   imageRole?: "content" | "identity" | null;
   published?: string | null;
   image?: string | null;
@@ -218,10 +220,18 @@ function InboxCard({ item, onDelete, disabled }: { item: InboxItem; onDelete: ()
   );
 }
 
+const libraryDay = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" });
+function addedToday(reading: Reading) {
+  return !!reading.addedAt && Number.isFinite(Date.parse(reading.addedAt)) && libraryDay.format(new Date(reading.addedAt)) === libraryDay.format(new Date());
+}
+function AddedBadge({ reading }: { reading: Reading }) {
+  return addedToday(reading) ? <span className="pill" title={libraryDay.format(new Date(reading.addedAt!))}>今日加入</span> : null;
+}
+
 function ReadingCard({ reading, onOpen }: { reading: Reading; onOpen: () => void }) {
   return (
     <button className="reading-ticket" onClick={onOpen}>
-      <div className="ticket-meta"><span className="pill">{TYPE_LABELS[reading.type] || reading.type}</span><span>{reading.completedCount}/{reading.leafCount}</span></div>
+      <div className="ticket-meta"><span className="pill">{TYPE_LABELS[reading.type] || reading.type}</span><AddedBadge reading={reading} /><span>{reading.completedCount}/{reading.leafCount}</span></div>
       <h3>{reading.title}</h3>
       {reading.tags?.length ? <div className="reading-tags">{reading.tags.map(tag => <span key={tag}>{tag}</span>)}</div> : null}
       {reading.author && <div className="muted">{reading.author}</div>}
@@ -239,7 +249,7 @@ function TimelineCard({ reading, onOpen }: { reading: Reading; onOpen: (file: st
     src={sourceHref(image)} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.hidden = true; }} />;
   return <button className="timeline-work" onClick={() => onOpen(reading.file)}>
     <span className="timeline-meta">{day && <time dateTime={published!}>{Number(day)}<small>日</small></time>}
-      {TYPE_LABELS[reading.type] || reading.type}</span>
+      {TYPE_LABELS[reading.type] || reading.type}<AddedBadge reading={reading} /></span>
     <strong>{reading.title}</strong>
     <span className="timeline-byline">{identity && picture}{author}</span>
     {!identity && picture}
@@ -310,13 +320,17 @@ function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file:
   const tags = [...new Set(state.readings.flatMap(item => item.tags || []))].sort((a,b) => a.localeCompare(b, "zh-CN"));
   const availableTypes = [...new Set(state.readings.map(r => r.type))];
   const term = query.trim().toLowerCase();
+  const [addedFilter, setAddedFilter] = useState("");
+  const latestBatch = state.readings.reduce<Reading | undefined>((last, item) =>
+    item.batchId && item.addedAt && item.addedAt > (last?.addedAt || "") ? item : last, undefined)?.batchId;
   const tagged = state.readings.filter(item =>
+    (!addedFilter || (addedFilter === "today" ? addedToday(item) : latestBatch && item.batchId === latestBatch)) &&
     (!topics.length || item.tags?.some(tag => topics.includes(tag))) &&
     (!types.length || types.includes(item.type)) &&
     (!term || [item.title, item.author, item.description].some(text => text?.toLowerCase().includes(term)))
   );
-  const hasFilters = !!(topics.length || types.length || term || filter !== "all");
-  const clearFilters = () => { setTopics([]); setTypes([]); setQuery(""); setFilter("all"); };
+  const hasFilters = !!(addedFilter || topics.length || types.length || term || filter !== "all");
+  const clearFilters = () => { setAddedFilter(""); setTopics([]); setTypes([]); setQuery(""); setFilter("all"); };
   const active = state.readings.filter(item => item.status === "reading");
   const unstarted = state.readings.filter(item => item.status === "unstarted");
   const completed = state.readings.filter(item => item.status === "completed");
@@ -399,6 +413,10 @@ function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file:
             </div>
           </div>
           <div className="library-facets">
+            <div className="facet-row" role="group" aria-label="加入时间"><strong className="facet-label">加入时间</strong><div className="filter-tabs">
+              {[["", "全部"], ["today", "今日加入"], ["batch", "最近一批"]].map(([key, label]) =>
+                <button key={key} className={addedFilter === key ? "active" : ""} aria-pressed={addedFilter === key} onClick={() => setAddedFilter(key)}>{label}</button>)}
+            </div></div>
             <FilterGroup label="业务主题" options={tags.map(value => ({ value, label: value }))} selected={topics} onChange={setTopics} />
             <FilterGroup label="材料类型" options={availableTypes.map(value => ({ value, label: TYPE_LABELS[value] || value }))} selected={types} onChange={setTypes} />
             <div className="facet-summary"><span aria-live="polite">{visible.length} 项材料{visible.length > 0 && ` · 平均进度 ${average}%`}</span>
@@ -670,7 +688,7 @@ function Detail({ reading, organization, disabled, saveActivity, onSaveNow, onBa
         <div>
           <div className="eyebrow">Reading Detail · {TYPE_LABELS[reading.type] || reading.type}</div>
           <h1>{reading.title}</h1>
-          <p>{[reading.author, reading.version].filter(Boolean).join(" · ")}</p>
+          <p>{[reading.author, reading.version, reading.addedAt && Number.isFinite(Date.parse(reading.addedAt)) ? libraryDay.format(new Date(reading.addedAt)) + " 加入" : null].filter(Boolean).join(" · ")}</p>
         </div>
         <div className="detail-status">
           <div className="save-panel">
