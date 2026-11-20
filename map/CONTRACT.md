@@ -109,3 +109,5 @@ Set optional imageRole to identity for a compact portrait or logo, or content fo
 An explicit /promote authorizes the write. Preview only when requested. Each new promotion records server-assigned addedAt and a batchId. Use one fresh batchId per multi-work request. Legacy records with unknown addition times remain undated.
 
 A root may have timelineAnchor {date, label} for an explicitly chosen reference date. This takes precedence over published for timeline placement. A repository without either uses its recorded intake date labeled 收录快照. This records the outline date, without implying a pinned commit. Related links are owner-selected pairs; topic similarity is expressed with tags.
+
+For a social post summarizing an interview or talk, find the original recording or an official page with embedded video. Verify the speakers, host and occasion, use the primary URL as the Reading link, and retain the discovery platform and URL in the description. If verification is incomplete, label the lead as secondary.

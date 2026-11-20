@@ -16,3 +16,5 @@ Read map/CONTRACT.md. An explicit promotion request authorizes creation for the 
 Create independent Reading roots for standalone works. Offer tags and related Reading files instead of requiring a topic. Keep deliberately scoped collections and excerpts as independent works with their own internal units and progress. Reuse an existing work for another tag. Never infer identity solely from a matching URL.
 
 Use tags for similar subjects. Create a related link only when the owner explicitly chooses or approves the pair. For continuous projects, distinguish a pinned release date from the date the reading outline was collected.
+
+For a social post summarizing an interview or talk, find the original recording or an official page with embedded video. Verify the speakers, host and occasion, use the primary URL as the Reading link, and retain the discovery platform and URL in the description. If verification is incomplete, label the lead as secondary.

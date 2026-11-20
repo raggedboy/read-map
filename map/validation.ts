@@ -24,8 +24,10 @@ export function validateOrganization(tags: unknown, related: unknown) {
   for (const target of related as unknown[]) filename(target);
 }
 export function validatePresentation(value: unknown) {
-  const meta = object(value, ["published", "image", "imageRole", "timelineAnchor"]);
+  const meta = object(value, ["published", "image", "imageRole", "timelineAnchor", "link", "description"]);
   if (meta.imageRole != null && !["content", "identity"].includes(meta.imageRole)) throw new Error("Invalid image role");
+  if (meta.description != null && (typeof meta.description !== "string" || meta.description.length > 50000)) throw new Error("Invalid description");
+  if (meta.link != null && (typeof meta.link !== "string" || meta.link.length > 50000 || !/^(https?:\/\/|resources\/)\S+$/.test(meta.link))) throw new Error("Invalid source link");
   if (meta.timelineAnchor != null) {
     const anchor = object(meta.timelineAnchor, ["date", "label"]);
     if (typeof anchor.date !== "string" || typeof anchor.label !== "string" || !anchor.label.trim() || anchor.label.length > 80) throw new Error("Invalid timeline anchor");
