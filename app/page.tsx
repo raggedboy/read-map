@@ -687,6 +687,16 @@ function Detail({ reading, organization, disabled, saveActivity, onSaveNow, onBa
   const [editingRootNotes, setEditingRootNotes] = useState(false);
   const [rootNotes, setRootNotes] = useState(reading.notes || "");
   const rootLeaf = reading.children.length === 0;
+  const flatArticle = !rootLeaf && ["article", "blog"].includes(reading.type) &&
+    reading.children.every(entry => !entry.children?.length);
+  const [logText, setLogText] = useState("");
+  async function appendLog() {
+    const text = logText.trim();
+    if (!text) return;
+    const stamp = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
+    await onUpdate([], { notes: [reading.notes, `[${stamp}] ${text}`].filter(Boolean).join("\n\n") });
+    setLogText("");
+  }
 
   useEffect(() => setRootNotes(reading.notes || ""), [reading.notes]);
 
@@ -719,11 +729,17 @@ function Detail({ reading, organization, disabled, saveActivity, onSaveNow, onBa
           </div>
         </div>
       </header>
-      <StructureOverview entries={reading.children} />
+      {!flatArticle && <StructureOverview entries={reading.children} />}
       <section className="detail-grid">
-        <main className="reading-panel">
-          <div className="panel-header"><div><h2>阅读目录</h2><p>父级进度由直接子节点递归计算。</p></div>{reading.link && <a className="button primary" href={sourceHref(reading.link)} target="_blank" rel="noreferrer">打开来源</a>}</div>
-          {reading.children.length ? reading.children.map(entry => <EntryRow key={entry.path.join("-")} entry={entry} reading={reading} depth={0} disabled={disabled} onUpdate={onUpdate} />) : <EmptyCard>目录尚未核验。请通过 Agent 整理阅读结构。</EmptyCard>}
+        <main className={flatArticle ? "reading-panel continuous-outline" : "reading-panel"}>
+          <div className="panel-header"><div><h2>{reading.type === "repo" ? "仓库阅读路线" : "阅读目录"}</h2>{!flatArticle && !rootLeaf && <p>父级进度由直接子节点递归计算。</p>}</div>{reading.link && <a className="button primary" href={sourceHref(reading.link)} target="_blank" rel="noreferrer">打开来源</a>}</div>
+          {reading.children.length ? reading.children.map(entry => <EntryRow key={entry.path.join("-")} entry={entry} reading={reading} depth={0} disabled={disabled} onUpdate={onUpdate} />) : <section className="outline-placeholder">
+            <h3>尚无章节目录</h3>
+            <label htmlFor="reading-log">阅读日志</label>
+            <textarea id="reading-log" disabled={disabled} value={logText} onChange={e => setLogText(e.target.value)} placeholder="记录访问情况、阅读线索或想法…" />
+            <button type="button" className="button" disabled={disabled || !logText.trim()} onClick={() => void appendLog()}>追加日志</button>
+            {reading.notes && <p className="outline-history">{reading.notes}</p>}
+          </section>}
         </main>
         <aside className="reading-aside">
           <div className="eyebrow">Overview</div>

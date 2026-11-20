@@ -441,3 +441,14 @@ a.file-name:hover strong { color: var(--green); }
 .timeline-progress { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
 .timeline-progress .progress-bar { width: 4.5rem; }
 @media (max-width: 620px) { .timeline-year { grid-template-columns: minmax(0, 1fr); gap: .8rem; } }
+
+.continuous-outline .entry.depth-0 { margin: 0 .85rem; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
+.continuous-outline .entry.depth-0:last-child { border-bottom: 0; }
+.continuous-outline .entry.depth-0 > .entry-main { min-height: 3.25rem; grid-template-columns: minmax(0, 1fr) auto auto; border-radius: 0; background: transparent; padding-left: 0 !important; }
+.continuous-outline .entry-toggle { display: none; }
+.continuous-outline .entry-actions, .continuous-outline .reading-status { grid-column: auto; grid-row: auto; width: auto; }
+.outline-placeholder { display: grid; gap: .65rem; margin: 1rem; padding: clamp(1rem, 3vw, 2rem); border-radius: .8rem; background: #f3f6f1; }
+.outline-placeholder h3 { margin: 0 0 .4rem; color: var(--green); }
+.outline-placeholder textarea { font: inherit; padding: .7rem; min-height: 5rem; resize: vertical; border: 1px solid var(--line); border-radius: .5rem; }
+.outline-placeholder .button { justify-self: start; }
+.outline-history { white-space: pre-wrap; overflow-wrap: anywhere; border-top: 1px solid var(--line); padding-top: 1rem; }
