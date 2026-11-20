@@ -228,24 +228,48 @@ function ReadingCard({ reading, onOpen }: { reading: Reading; onOpen: () => void
   );
 }
 
+function FilterGroup({ label, options, selected, onChange }: {
+  label: string; options: { value: string; label: string }[]; selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  return <div className="facet-row" role="group" aria-label={label}>
+    <strong className="facet-label">{label}</strong>
+    <div className="facet-options">
+      <button type="button" aria-pressed={!selected.length} onClick={() => onChange([])}>不限</button>
+      {options.map(option => {
+        const pressed = selected.includes(option.value);
+        return <button key={option.value} type="button" aria-pressed={pressed}
+          onClick={() => onChange(pressed ? selected.filter(v => v !== option.value) : [...selected, option.value])}>
+          {pressed && <span aria-hidden="true">✓ </span>}{option.label}
+        </button>;
+      })}
+    </div>
+  </div>;
+}
+
 function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file: string) => void; onDelete: (index: number) => void }) {
   const [filter, setFilter] = useState<"all" | Reading["status"]>("all");
   const [query, setQuery] = useState("");
-  const [tag, setTag] = useState("");
-  const tags = [...new Set(state.readings.flatMap(item => item.tags || []))].sort();
-  const tagged = state.readings.filter(item => !tag || item.tags?.includes(tag));
-  const tagProgress = tagged.length ? Math.round(tagged.reduce((sum, item) => sum + item.progress, 0) / tagged.length) : 0;
+  const [topics, setTopics] = useState<string[]>([]);
+  const [types, setTypes] = useState<string[]>([]);
+  const tags = [...new Set(state.readings.flatMap(item => item.tags || []))].sort((a,b) => a.localeCompare(b, "zh-CN"));
+  const availableTypes = [...new Set(state.readings.map(r => r.type))];
+  const term = query.trim().toLowerCase();
+  const tagged = state.readings.filter(item =>
+    (!topics.length || item.tags?.some(tag => topics.includes(tag))) &&
+    (!types.length || types.includes(item.type)) &&
+    (!term || [item.title, item.author, item.description].some(text => text?.toLowerCase().includes(term)))
+  );
+  const hasFilters = !!(topics.length || types.length || term || filter !== "all");
+  const clearFilters = () => { setTopics([]); setTypes([]); setQuery(""); setFilter("all"); };
   const active = state.readings.filter(item => item.status === "reading");
   const unstarted = state.readings.filter(item => item.status === "unstarted");
   const completed = state.readings.filter(item => item.status === "completed");
   const totalUnits = state.readings.reduce((sum, item) => sum + item.leafCount, 0);
   const completedUnits = state.readings.reduce((sum, item) => sum + item.completedCount, 0);
   const overallProgress = totalUnits ? Math.round(completedUnits / totalUnits * 100) : 0;
-  const visible = tagged.filter(item => {
-    const matchesFilter = filter === "all" || item.status === filter;
-    const term = query.trim().toLowerCase();
-    return matchesFilter && (!term || `${item.title} ${item.author || ""} ${item.description || ""}`.toLowerCase().includes(term));
-  });
+  const visible = tagged.filter(item => filter === "all" || item.status === filter);
+  const average = visible.length ? Math.round(visible.reduce((sum, item) => sum + item.progress, 0) / visible.length) : 0;
   const tabs: Array<{ key: "all" | Reading["status"]; label: string; count: number }> = [
     { key: "all", label: "全部", count: tagged.length },
     { key: "reading", label: "进行中", count: tagged.filter(r => r.status === "reading").length },
@@ -315,12 +339,16 @@ function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file:
         <section className="library-section">
           <div className="library-header">
             <div><div className="eyebrow">Library</div><h2>全部阅读项目</h2></div>
-            <div className="filter-tabs" role="tablist" aria-label="阅读状态筛选">
-              {tabs.map(tab => <button className={filter === tab.key ? "active" : ""} key={tab.key} onClick={() => setFilter(tab.key)}>{tab.label}<span>{tab.count}</span></button>)}
+            <div className="filter-tabs" role="group" aria-label="阅读状态筛选">
+              {tabs.map(tab => <button className={filter === tab.key ? "active" : ""} key={tab.key} aria-pressed={filter === tab.key} onClick={() => setFilter(tab.key)}>{tab.label}<span>{tab.count}</span></button>)}
             </div>
           </div>
-          <div className="tag-filter"><label>标签 <select value={tag} onChange={e => setTag(e.target.value)}><option value="">全部标签</option>{tags.map(t => <option key={t}>{t}</option>)}</select></label>
-            {tag && <small>{tagged.length} 项 · 平均进度 {tagProgress}%</small>}
+          <div className="library-facets">
+            <FilterGroup label="业务主题" options={tags.map(value => ({ value, label: value }))} selected={topics} onChange={setTopics} />
+            <FilterGroup label="材料类型" options={availableTypes.map(value => ({ value, label: TYPE_LABELS[value] || value }))} selected={types} onChange={setTypes} />
+            <div className="facet-summary"><span aria-live="polite">{visible.length} 项材料{visible.length > 0 && ` · 平均进度 ${average}%`}</span>
+              {hasFilters && <button type="button" onClick={clearFilters}>清除筛选</button>}
+            </div>
           </div>
           <div className="reading-grid">
             {visible.map(reading => <ReadingCard key={reading.file} reading={reading} onOpen={() => onOpen(reading.file)} />)}
@@ -786,7 +814,8 @@ function App() {
       {state.readOnly && <div className="system-banner error"><strong>只读模式</strong>{state.errors.join("；")}</div>}
       {!state.readOnly && saveError && <div className="system-banner error"><span>{saveError}。页面上的修改仍然保留。</span><button className="button" onClick={() => void retrySaves()}>重试保存</button></div>}
       {!state.readOnly && !saveError && message && <div className={`system-banner ${messageError ? "error" : "success"}`}>{message}</div>}
-      {selected ? <Detail key={selected.file} reading={selected} organization={<ReadingOrganization reading={selected} readings={state.readings} disabled={state.readOnly || !!pendingRef.current.get(selected.file)} onOpen={setSelectedFile} onSaved={setCurrentState} />} disabled={state.readOnly} saveActivity={saveActivity?.file === selected.file ? saveActivity : null} onSaveNow={() => void flushRef.current(selected.file)} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} /> : <Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} />}
+      <div hidden={!!selected}><Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} /></div>
+      {selected && <Detail key={selected.file} reading={selected} organization={<ReadingOrganization reading={selected} readings={state.readings} disabled={state.readOnly || !!pendingRef.current.get(selected.file)} onOpen={setSelectedFile} onSaved={setCurrentState} />} disabled={state.readOnly} saveActivity={saveActivity?.file === selected.file ? saveActivity : null} onSaveNow={() => void flushRef.current(selected.file)} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} />}
     </>
   );
 }
