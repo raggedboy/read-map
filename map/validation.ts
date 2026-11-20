@@ -24,7 +24,8 @@ export function validateOrganization(tags: unknown, related: unknown) {
   for (const target of related as unknown[]) filename(target);
 }
 export function validatePresentation(value: unknown) {
-  const meta = object(value, ["published", "image"]);
+  const meta = object(value, ["published", "image", "imageRole"]);
+  if (meta.imageRole != null && !["content", "identity"].includes(meta.imageRole)) throw new Error("Invalid image role");
   if (meta.published != null) {
     const date = meta.published;
     if (typeof date !== "string" || !/^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$/.test(date))
@@ -36,8 +37,8 @@ export function validatePresentation(value: unknown) {
 }
 export function validateNode(value: unknown, inbox = false, depth = 0, budget = { count: 0 }): asserts value is ReadingNode & InboxItem {
   if (depth > 20 || ++budget.count > 1000) throw new Error("Reading is too large");
-  const node = object(value, ["title", "type", "author", "link", "version", "description", ...(!depth ? ["published", "image"] : []), ...(inbox ? ["added"] : ["progress", "notes", "children", ...(!depth ? ["tags", "related"] : [])])]);
-  if (!depth) validatePresentation({ published: node.published, image: node.image });
+  const node = object(value, ["title", "type", "author", "link", "version", "description", ...(!depth ? ["published", "image", "imageRole"] : []), ...(inbox ? ["added"] : ["progress", "notes", "children", ...(!depth ? ["tags", "related"] : [])])]);
+  if (!depth) validatePresentation({ published: node.published, image: node.image, imageRole: node.imageRole });
   if (!inbox && !depth) validateOrganization(node.tags ?? [], node.related ?? []);
   if (typeof node.title !== "string" || !node.title.trim() || node.title.length > 1000 || ![...sourceTypes, ...(inbox ? [] : ["section"])].includes(node.type)) throw new Error("Invalid title or type");
   for (const key of ["author", "link", "version", "description", "notes", "added"]) if (node[key] != null && (typeof node[key] !== "string" || node[key].length > 50000)) throw new Error(`Invalid ${key}`);

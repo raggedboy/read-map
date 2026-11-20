@@ -3,6 +3,7 @@ import type * as Data from "../app/api/_data";
 type Operations = Pick<typeof Data, "updatePresentation" | "organizeReading" | "extractReadings" | "deleteReading" | "state" | "addInboxItem" | "promoteInbox" | "recordEntry" | "editReading" | "deleteInboxItem" | "deletedInbox" | "restoreInboxItem">;
 const optionalText = { type: ["string", "null"], maxLength: 50000 };
 const presentation = {
+  imageRole: { enum: ["content", "identity", null], description: "Use identity for logos or portraits, content for source illustrations, covers or screenshots." },
   published: { type: ["string", "null"], description: "Verified source date (edition publication, original article publication, or talk delivery). Preserve known precision: YYYY, YYYY-MM, or YYYY-MM-DD. Omit unknown dates." },
   image: { type: ["string", "null"], description: "Optional source cover or publisher logo: HTTPS URL or resources/ path." }
 };

@@ -2,14 +2,14 @@ import { env } from "cloudflare:workers";
 import { validatePresentation, validateOrganization, filename, indexes as validateIndexes, validateNode, version as validateVersion } from "../../map/validation";
 
 export type ReadingNode = {
-  published?: string | null; image?: string | null;
+  imageRole?: "identity" | "content" | null; published?: string | null; image?: string | null;
   tags?: string[]; related?: string[];
   title: string; type: string; author?: string | null; version?: string | null;
   description?: string | null; link?: string | null; progress?: number;
   notes?: string | null; children?: ReadingNode[];
 };
 export type InboxItem = {
-  published?: string | null; image?: string | null;
+  imageRole?: "identity" | "content" | null; published?: string | null; image?: string | null;
   title: string; type: "collection" | "book" | "article" | "talk" | "blog" | "paper" | "repo";
   author?: string | null; link?: string | null; version?: string | null;
   description?: string | null; added?: string | null;
@@ -321,6 +321,7 @@ export async function updatePresentation(file: string, dataVersion: string, meta
   filename(file);
   validateVersion(dataVersion);
   validatePresentation(metadata);
+  if ("image" in metadata && !("imageRole" in metadata)) metadata = { ...metadata, imageRole: null };
   if (!Object.keys(metadata).length) throw new Error("Missing presentation metadata");
   const result = await env.DB.prepare(`
     UPDATE map_documents SET content = json_patch(content, ?), version = version + 1, updated_at = ?

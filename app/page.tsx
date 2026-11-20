@@ -29,6 +29,7 @@ type Entry = {
 };
 
 type Reading = {
+  imageRole?: "content" | "identity" | null;
   published?: string | null;
   image?: string | null;
   tags?: string[];
@@ -230,29 +231,46 @@ function ReadingCard({ reading, onOpen }: { reading: Reading; onOpen: () => void
   );
 }
 
+function TimelineCard({ reading, onOpen }: { reading: Reading; onOpen: (file: string) => void }) {
+  const { published, image, imageRole, author, tags } = reading;
+  const day = published?.slice(8);
+  const identity = imageRole === "identity";
+  const picture = image && <img key={image} className={identity ? "timeline-identity" : "timeline-figure"}
+    src={sourceHref(image)} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.hidden = true; }} />;
+  return <button className="timeline-work" onClick={() => onOpen(reading.file)}>
+    <span className="timeline-meta">{day && <time dateTime={published!}>{Number(day)}<small>日</small></time>}
+      {TYPE_LABELS[reading.type] || reading.type}</span>
+    <strong>{reading.title}</strong>
+    <span className="timeline-byline">{identity && picture}{author}</span>
+    {!identity && picture}
+    <span className="timeline-footer">{tags?.length ? <span>{tags.join(" · ")}</span> : null}
+      <span className="timeline-progress"><ProgressBar value={reading.progress} />{reading.progress}%</span></span>
+  </button>;
+}
+
 function Timeline({ readings, onOpen, oldest }: { readings: Reading[]; onOpen: (file: string) => void; oldest: boolean }) {
   const sorted = [...readings].sort((a, b) => {
     if (!a.published || !b.published) return Number(!a.published) - Number(!b.published);
     return (oldest ? 1 : -1) * a.published.localeCompare(b.published);
   });
-  const groups = new Map<string, Reading[]>();
+  const groups = new Map<string, Map<string, Reading[]>>();
   for (const reading of sorted) {
     const year = reading.published?.slice(0, 4) || "日期待考";
-    if (!groups.has(year)) groups.set(year, []);
-    groups.get(year)!.push(reading);
+    const month = reading.published?.slice(5, 7) || "";
+    if (!groups.has(year)) groups.set(year, new Map());
+    const months = groups.get(year)!;
+    if (!months.has(month)) months.set(month, []);
+    months.get(month)!.push(reading);
   }
-  return <div className="source-timeline">{Array.from(groups, ([year, works]) =>
+  return <div className="source-timeline">{Array.from(groups, ([year, months]) =>
     <section className="timeline-year" key={year}>
       <h3>{year}</h3>
-      <div className="timeline-works">{works.map(r => <button key={r.file} className="timeline-work" onClick={() => onOpen(r.file)}>
-        <span className="timeline-copy">
-          <span className="timeline-meta">{r.published && <time dateTime={r.published}>{r.published.replace(/-/g, ".")}</time>}{TYPE_LABELS[r.type] || r.type}</span>
-          <strong>{r.title}</strong>
-          <span className="timeline-byline">{[r.author, ...(r.tags || [])].filter(Boolean).join(" · ")}</span>
-          <span className="timeline-progress"><ProgressBar value={r.progress} />{r.progress}%</span>
-        </span>
-        {r.image && <img key={r.image} src={sourceHref(r.image)} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.hidden = true; }} />}
-      </button>)}</div>
+      <div className="timeline-months">{Array.from(months, ([month, works]) =>
+        <section className="timeline-month" key={month}>
+          {month ? <h4>{Number(month)} 月</h4> : year !== "日期待考" && <h4>月份待考</h4>}
+          <div className="timeline-works">{works.map(reading =>
+            <TimelineCard key={reading.file} reading={reading} onOpen={onOpen} />)}</div>
+        </section>)}</div>
     </section>
   )}</div>;
 }
