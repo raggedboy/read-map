@@ -412,15 +412,15 @@ a.file-name:hover strong { color: var(--green); }
 
 .library-view { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 1rem 0; }
 .library-view select { font: inherit; color: inherit; background: white; padding: .4rem .6rem; border: 1px solid var(--line, #d9dfd9); border-radius: .5rem; }
-.timeline-year { display: grid; grid-template-columns: clamp(5rem, 13%, 9rem) minmax(0, 48rem); gap: clamp(1rem, 3vw, 3rem); margin: 2.4rem 0; }
+.timeline-year { display: grid; grid-template-columns: clamp(4.75rem, 8%, 6.5rem) minmax(0, 1fr); gap: clamp(1rem, 3vw, 3rem); margin: 2.4rem 0; }
 .timeline-year h3 { font: 600 clamp(1.6rem, 4vw, 3rem)/1.1 Georgia, serif; letter-spacing: -.04em; color: var(--green); margin: 0; }
-.timeline-month + .timeline-month { margin-top: 2.5rem; }
+.timeline-month + .timeline-month { margin-top: 1.75rem; }
 .timeline-month h4 { font-size: 1.25rem; color: var(--green); margin: 0 0 .8rem; }
-.timeline-works { border-left: 1px solid #b8c8bf; padding-left: 1.2rem; display: grid; gap: 1rem; }
-.timeline-work { position: relative; display: grid; gap: .65rem; min-width: 0; width: 100%; text-align: left; color: inherit; font: inherit; background: white; padding: clamp(1rem, 2vw, 1.55rem); border: 1px solid #dce4dd; border-radius: .8rem; cursor: pointer; overflow-wrap: anywhere; }
-.timeline-work::before { position: absolute; content: ''; top: 1.55rem; left: -1.52rem; width: .55rem; height: .55rem; border-radius: 50%; background: var(--green); }
+.timeline-works { columns: 17rem 3; column-gap: 1rem; }
+.timeline-month { border-top: 1px solid #cddbd2; padding-top: .7rem; }
+.timeline-work { display: inline-grid; vertical-align: top; break-inside: avoid; margin: 0 0 1rem; gap: .55rem; min-width: 0; width: 100%; text-align: left; color: inherit; font: inherit; background: white; padding: clamp(.9rem, 1.4vw, 1.2rem); border: 1px solid #dce4dd; border-radius: .8rem; cursor: pointer; overflow-wrap: anywhere; }
 .timeline-work:hover, .timeline-work:focus-visible { border-color: var(--green); }
-.timeline-work strong { font-size: clamp(1.15rem, 2vw, 1.55rem); line-height: 1.35; }
+.timeline-work strong { font-size: clamp(1.12rem, 1.5vw, 1.35rem); line-height: 1.35; }
 .timeline-meta, .timeline-byline, .timeline-footer { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; font-size: .88rem; color: #51645a; }
 .timeline-meta time { color: var(--green); font: 600 1.7rem/1 Georgia, serif; }
 .timeline-meta small { font: 500 .8rem/1 sans-serif; margin-left: .18rem; }
@@ -430,4 +430,4 @@ a.file-name:hover strong { color: var(--green); }
 .timeline-footer { justify-content: space-between; margin-top: .2rem; }
 .timeline-progress { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
 .timeline-progress .progress-bar { width: 4.5rem; }
-@media (max-width: 620px) { .timeline-year { grid-template-columns: minmax(0, 1fr); gap: .8rem; } .timeline-works { padding-left: .8rem; margin-left: .2rem; } .timeline-work::before { left: -1.12rem; } }
+@media (max-width: 620px) { .timeline-year { grid-template-columns: minmax(0, 1fr); gap: .8rem; } }
