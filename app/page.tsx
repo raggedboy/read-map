@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
 import { parse } from "yaml";
 
@@ -655,7 +655,16 @@ function ReadingOrganization({ reading, readings, disabled, onOpen, onSaved }: {
   }
   return <section className="reading-organization">
     {reading.tags?.length ? <div className="reading-tags">{reading.tags.map(t => <span key={t}>{t}</span>)}</div> : null}
-    {related.length > 0 && <div><strong>关联阅读</strong>{related.map(r => <button className="related-item" key={r.file} onClick={() => onOpen(r.file)}>{r.title} · {r.progress}%</button>)}</div>}
+    {related.length > 0 && <section className="related-list" aria-label="关联阅读">
+      <h3>关联阅读 <span>{related.length}</span></h3>
+      {related.map(r => <button type="button" className="related-item" data-related-file={r.file} key={r.file} onClick={() => onOpen(r.file)}>
+        <span className="related-copy">
+          <span className="related-meta">{TYPE_LABELS[r.type] || r.type} · 已读 {r.progress}%</span>
+          <strong>{r.title}</strong>
+        </span>
+        <span className="related-chevron" aria-hidden="true">›</span>
+      </button>)}
+    </section>}
     {draft ? <fieldset disabled={busy || disabled}>
       <legend>编辑标签与关联</legend>
       <label>标签（逗号分隔）<input value={draft.tags} onChange={e => setDraft({ ...draft, tags: e.target.value })} /></label>
@@ -683,7 +692,7 @@ function Detail({ reading, organization, disabled, saveActivity, onSaveNow, onBa
 
   return (
     <div className="detail-shell">
-      <button className="button back" onClick={onBack}>← 返回概览</button>
+      <button className="button back" onClick={onBack}><span aria-hidden="true">←</span> 返回</button>
       <header className="detail-header">
         <div>
           <div className="eyebrow">Reading Detail · {TYPE_LABELS[reading.type] || reading.type}</div>
@@ -735,6 +744,28 @@ function Detail({ reading, organization, disabled, saveActivity, onSaveNow, onBa
 function App() {
   const [state, setState] = useState<MapState | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const trail = useRef<Array<{ file: string | null; y: number; trigger: HTMLElement | null }>>([]);
+  const destination = useRef<{ y: number; trigger?: HTMLElement | null; relatedFile?: string } | null>(null);
+  function openReading(file: string) {
+    trail.current.push({ file: selectedFile, y: window.scrollY, trigger: document.activeElement as HTMLElement | null });
+    destination.current = { y: 0 };
+    setSelectedFile(file);
+  }
+  function back() {
+    const previous = trail.current.pop();
+    const file = state?.readings.some(r => r.file === previous?.file) ? previous!.file : null;
+    destination.current = { y: previous?.y ?? 0, trigger: previous?.trigger, relatedFile: selectedFile ?? undefined };
+    setSelectedFile(file);
+  }
+  useLayoutEffect(() => {
+    const target = destination.current;
+    if (!target) return;
+    destination.current = null;
+    const trigger = target.trigger?.isConnected ? target.trigger : target.relatedFile
+      ? document.querySelector<HTMLElement>(`[data-related-file="${CSS.escape(target.relatedFile)}"]`) : null;
+    (trigger ?? document.querySelector<HTMLElement>(".detail-shell .back"))?.focus({ preventScroll: true });
+    window.scrollTo(0, target.y);
+  }, [selectedFile]);
   const [message, setMessage] = useState<string | null>(null);
   const [messageError, setMessageError] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -896,8 +927,8 @@ function App() {
       {state.readOnly && <div className="system-banner error"><strong>只读模式</strong>{state.errors.join("；")}</div>}
       {!state.readOnly && saveError && <div className="system-banner error"><span>{saveError}。页面上的修改仍然保留。</span><button className="button" onClick={() => void retrySaves()}>重试保存</button></div>}
       {!state.readOnly && !saveError && message && <div className={`system-banner ${messageError ? "error" : "success"}`}>{message}</div>}
-      <div hidden={!!selected}><Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} /></div>
-      {selected && <Detail key={selected.file} reading={selected} organization={<ReadingOrganization reading={selected} readings={state.readings} disabled={state.readOnly || !!pendingRef.current.get(selected.file)} onOpen={setSelectedFile} onSaved={setCurrentState} />} disabled={state.readOnly} saveActivity={saveActivity?.file === selected.file ? saveActivity : null} onSaveNow={() => void flushRef.current(selected.file)} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} />}
+      <div hidden={!!selected}><Overview state={state} onOpen={openReading} onDelete={index => void removeInbox(index)} /></div>
+      {selected && <Detail key={selected.file} reading={selected} organization={<ReadingOrganization reading={selected} readings={state.readings} disabled={state.readOnly || !!pendingRef.current.get(selected.file)} onOpen={openReading} onSaved={setCurrentState} />} disabled={state.readOnly} saveActivity={saveActivity?.file === selected.file ? saveActivity : null} onSaveNow={() => void flushRef.current(selected.file)} onBack={back} onUpdate={(path, change) => update(selected, path, change)} />}
     </>
   );
 }
