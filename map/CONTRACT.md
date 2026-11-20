@@ -107,3 +107,5 @@ Inbox sources and Reading roots may carry `published` (verified edition publicat
 Set optional imageRole to identity for a compact portrait or logo, or content for a full-width source image (default). Supply the role together with a replacement image. Timeline headings group works by known year and month.
 
 An explicit /promote authorizes the write. Preview only when requested. Each new promotion records server-assigned addedAt and a batchId. Use one fresh batchId per multi-work request. Legacy records with unknown addition times remain undated.
+
+A root may have timelineAnchor {date, label} for an explicitly chosen reference date. This takes precedence over published for timeline placement. A repository without either uses its recorded intake date labeled 收录快照. This records the outline date, without implying a pinned commit. Related links are owner-selected pairs; topic similarity is expressed with tags.

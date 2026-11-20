@@ -32,6 +32,7 @@ type Reading = {
   addedAt?: string;
   batchId?: string;
   imageRole?: "content" | "identity" | null;
+  timelineAnchor?: { date: string; label: string } | null;
   published?: string | null;
   image?: string | null;
   tags?: string[];
@@ -241,15 +242,25 @@ function ReadingCard({ reading, onOpen }: { reading: Reading; onOpen: () => void
   );
 }
 
+function timelineDate(reading: Reading) {
+  if (reading.timelineAnchor) return reading.timelineAnchor;
+  if (reading.published) return { date: reading.published, label: "" };
+  if (reading.type === "repo" && reading.addedAt && Number.isFinite(Date.parse(reading.addedAt))) {
+    return { date: new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai" }).format(new Date(reading.addedAt)), label: "收录快照" };
+  }
+  return { date: "", label: "" };
+}
+
 function TimelineCard({ reading, onOpen }: { reading: Reading; onOpen: (file: string) => void }) {
-  const { published, image, imageRole, author, tags } = reading;
-  const day = published?.slice(8);
+  const { image, imageRole, author, tags } = reading;
+  const { date, label } = timelineDate(reading);
+  const day = date.slice(8);
   const identity = imageRole === "identity";
   const picture = image && <img key={image} className={identity ? "timeline-identity" : "timeline-figure"}
     src={sourceHref(image)} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.hidden = true; }} />;
   return <button className="timeline-work" onClick={() => onOpen(reading.file)}>
-    <span className="timeline-meta">{day && <time dateTime={published!}>{Number(day)}<small>日</small></time>}
-      {TYPE_LABELS[reading.type] || reading.type}<AddedBadge reading={reading} /></span>
+    <span className="timeline-meta">{day && <time dateTime={date}>{Number(day)}<small>日</small></time>}
+      {label && <span>{label} · </span>}{TYPE_LABELS[reading.type] || reading.type}<AddedBadge reading={reading} /></span>
     <strong>{reading.title}</strong>
     <span className="timeline-byline">{identity && picture}{author}</span>
     {!identity && picture}
@@ -260,13 +271,15 @@ function TimelineCard({ reading, onOpen }: { reading: Reading; onOpen: (file: st
 
 function Timeline({ readings, onOpen, oldest }: { readings: Reading[]; onOpen: (file: string) => void; oldest: boolean }) {
   const sorted = [...readings].sort((a, b) => {
-    if (!a.published || !b.published) return Number(!a.published) - Number(!b.published);
-    return (oldest ? 1 : -1) * a.published.localeCompare(b.published);
+    const left = timelineDate(a).date, right = timelineDate(b).date;
+    if (!left || !right) return Number(!left) - Number(!right);
+    return (oldest ? 1 : -1) * left.localeCompare(right);
   });
   const groups = new Map<string, Map<string, Reading[]>>();
   for (const reading of sorted) {
-    const year = reading.published?.slice(0, 4) || "日期待考";
-    const month = reading.published?.slice(5, 7) || "";
+    const date = timelineDate(reading).date;
+    const year = date.slice(0, 4) || "日期待考";
+    const month = date.slice(5, 7) || "";
     if (!groups.has(year)) groups.set(year, new Map());
     const months = groups.get(year)!;
     if (!months.has(month)) months.set(month, []);

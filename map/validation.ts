@@ -24,10 +24,14 @@ export function validateOrganization(tags: unknown, related: unknown) {
   for (const target of related as unknown[]) filename(target);
 }
 export function validatePresentation(value: unknown) {
-  const meta = object(value, ["published", "image", "imageRole"]);
+  const meta = object(value, ["published", "image", "imageRole", "timelineAnchor"]);
   if (meta.imageRole != null && !["content", "identity"].includes(meta.imageRole)) throw new Error("Invalid image role");
-  if (meta.published != null) {
-    const date = meta.published;
+  if (meta.timelineAnchor != null) {
+    const anchor = object(meta.timelineAnchor, ["date", "label"]);
+    if (typeof anchor.date !== "string" || typeof anchor.label !== "string" || !anchor.label.trim() || anchor.label.length > 80) throw new Error("Invalid timeline anchor");
+  }
+  for (const date of [meta.published, meta.timelineAnchor?.date]) {
+    if (date == null) continue;
     if (typeof date !== "string" || !/^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$/.test(date))
       throw new Error("Use YYYY, YYYY-MM or YYYY-MM-DD");
     if (date.length === 10 && new Date(date).toISOString().slice(0, 10) !== date) throw new Error("Invalid calendar date");
@@ -37,8 +41,8 @@ export function validatePresentation(value: unknown) {
 }
 export function validateNode(value: unknown, inbox = false, depth = 0, budget = { count: 0 }): asserts value is ReadingNode & InboxItem {
   if (depth > 20 || ++budget.count > 1000) throw new Error("Reading is too large");
-  const node = object(value, ["title", "type", "author", "link", "version", "description", ...(!depth ? ["published", "image", "imageRole"] : []), ...(inbox ? ["added"] : ["progress", "notes", "children", ...(!depth ? ["tags", "related"] : [])])]);
-  if (!depth) validatePresentation({ published: node.published, image: node.image, imageRole: node.imageRole });
+  const node = object(value, ["title", "type", "author", "link", "version", "description", ...(!depth ? ["published", "image", "imageRole", "timelineAnchor"] : []), ...(inbox ? ["added"] : ["progress", "notes", "children", ...(!depth ? ["tags", "related"] : [])])]);
+  if (!depth) validatePresentation({ published: node.published, image: node.image, imageRole: node.imageRole, timelineAnchor: node.timelineAnchor });
   if (!inbox && !depth) validateOrganization(node.tags ?? [], node.related ?? []);
   if (typeof node.title !== "string" || !node.title.trim() || node.title.length > 1000 || ![...sourceTypes, ...(inbox ? [] : ["section"])].includes(node.type)) throw new Error("Invalid title or type");
   for (const key of ["author", "link", "version", "description", "notes", "added"]) if (node[key] != null && (typeof node[key] !== "string" || node[key].length > 50000)) throw new Error(`Invalid ${key}`);

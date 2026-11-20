@@ -14,3 +14,5 @@ Read map/CONTRACT.md. An explicit promotion request authorizes creation for the 
 5. Report the created works and any missing metadata. The owner can review the latest batch in the library.
 
 Create independent Reading roots for standalone works. Offer tags and related Reading files instead of requiring a topic. Keep deliberately scoped collections and excerpts as independent works with their own internal units and progress. Reuse an existing work for another tag. Never infer identity solely from a matching URL.
+
+Use tags for similar subjects. Create a related link only when the owner explicitly chooses or approves the pair. For continuous projects, distinguish a pinned release date from the date the reading outline was collected.
