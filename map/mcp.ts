@@ -1,8 +1,8 @@
-import { object, validateNode, version, filename, indexes } from "./validation";
+import { sourceTypes, object, validateNode, version, filename, indexes } from "./validation";
 import type * as Data from "../app/api/_data";
 type Operations = Pick<typeof Data, "deleteReading" | "state" | "addInboxItem" | "promoteInbox" | "recordEntry" | "editReading" | "deleteInboxItem" | "deletedInbox" | "restoreInboxItem">;
 const optionalText = { type: ["string", "null"], maxLength: 50000 };
-const fields = { title: { type: "string", minLength: 1, maxLength: 1000 }, type: { type: "string", enum: ["collection", "book", "article", "paper", "repo"] }, author: optionalText, link: optionalText, version: optionalText, description: optionalText };
+const fields = { title: { type: "string", minLength: 1, maxLength: 1000 }, type: { type: "string", enum: sourceTypes }, author: optionalText, link: optionalText, version: optionalText, description: optionalText };
 const versionSchema = { type: "string", pattern: "^[1-9][0-9]*$", description: "Original version from read_map_state. Never silently refresh after approval." };
 const fileSchema = { type: "string", pattern: "^[^/\\\\]+\\.yaml$", maxLength: 205 };
 const schema = (properties: Record<string, unknown>, required: string[]) => ({ type: "object", properties, required, additionalProperties: false });

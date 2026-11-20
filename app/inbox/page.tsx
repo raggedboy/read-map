@@ -15,7 +15,7 @@ type InboxItem = {
 type MapState = { readOnly: boolean; inbox: InboxItem[]; errors?: string[] };
 
 const TYPE_LABELS: Record<string, string> = {
-  book: "书籍", article: "文章", collection: "集合", repo: "仓库", paper: "论文", section: "章节",
+  book: "书籍", article: "文章", talk: "演讲", blog: "博客", collection: "集合", repo: "仓库", paper: "论文", section: "章节",
 };
 
 function sourceHref(link: string): string {

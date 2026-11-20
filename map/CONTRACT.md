@@ -31,7 +31,7 @@ An Inbox item is an unshaped source:
 
 ```yaml
 title: string
-type: collection | book | article | paper | repo
+type: collection | book | article | talk | blog | paper | repo
 author: string       # optional
 link: string         # optional
 version: string      # optional
@@ -47,7 +47,7 @@ A Reading is one recursive `ReadingNode`:
 
 ```yaml
 title: string
-type: collection | book | article | paper | repo | section
+type: collection | book | article | talk | blog | paper | repo | section
 author: string       # optional
 link: string         # optional
 version: string      # optional

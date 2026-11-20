@@ -1,5 +1,5 @@
 import type { InboxItem, ReadingNode } from "../app/api/_data";
-export const sourceTypes = ["collection", "book", "article", "paper", "repo"];
+export const sourceTypes = ["collection", "book", "article", "talk", "blog", "paper", "repo"];
 export function object(value: unknown, keys: string[]): Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Expected an object");
   if (Object.keys(value).some(key => !keys.includes(key))) throw new Error("Unknown argument");

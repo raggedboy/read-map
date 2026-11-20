@@ -7,7 +7,7 @@ export type ReadingNode = {
   notes?: string | null; children?: ReadingNode[];
 };
 export type InboxItem = {
-  title: string; type: "collection" | "book" | "article" | "paper" | "repo";
+  title: string; type: "collection" | "book" | "article" | "talk" | "blog" | "paper" | "repo";
   author?: string | null; link?: string | null; version?: string | null;
   description?: string | null; added?: string | null;
 };

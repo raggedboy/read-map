@@ -156,6 +156,8 @@ function DataImporter({ onImported, compact = false }: { onImported: (state: Map
 const TYPE_LABELS: Record<string, string> = {
   book: "书籍",
   article: "文章",
+  talk: "演讲",
+  blog: "博客",
   collection: "集合",
   repo: "仓库",
   paper: "论文",
@@ -487,6 +489,7 @@ function EntryRow({ entry, reading, depth, disabled, onUpdate }: {
       <div className="entry-main" style={{ paddingLeft: `${12 + depth * 20}px` }}>
         <button className="entry-toggle" onClick={() => setExpanded(value => !value)} aria-label={expanded ? "收起" : "展开"}>{entry.children?.length ? (expanded ? <ChevronDown /> : <ChevronRight />) : <span className="entry-dot">·</span>}</button>
         <div className="entry-copy">
+          {(entry.type === "talk" || entry.type === "blog") && <span className="pill">{TYPE_LABELS[entry.type]}</span>}
           {entry.link
             ? <a className="entry-title entry-link" href={sourceHref(entry.link)} target="_blank" rel="noreferrer" title="打开阅读内容">{entry.title}<span aria-hidden="true"><ExternalIcon /></span></a>
             : <div className="entry-title">{entry.title}</div>}
