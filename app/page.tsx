@@ -29,6 +29,8 @@ type Entry = {
 };
 
 type Reading = {
+  tags?: string[];
+  related?: string[];
   title: string;
   type: string;
   author?: string | null;
@@ -218,6 +220,7 @@ function ReadingCard({ reading, onOpen }: { reading: Reading; onOpen: () => void
     <button className="reading-ticket" onClick={onOpen}>
       <div className="ticket-meta"><span className="pill">{TYPE_LABELS[reading.type] || reading.type}</span><span>{reading.completedCount}/{reading.leafCount}</span></div>
       <h3>{reading.title}</h3>
+      {reading.tags?.length ? <div className="reading-tags">{reading.tags.map(tag => <span key={tag}>{tag}</span>)}</div> : null}
       {reading.author && <div className="muted">{reading.author}</div>}
       {reading.description && <p>{reading.description}</p>}
       <div className="reading-progress"><ProgressBar value={reading.progress} /><strong>{reading.progress}%</strong></div>
@@ -228,22 +231,26 @@ function ReadingCard({ reading, onOpen }: { reading: Reading; onOpen: () => void
 function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file: string) => void; onDelete: (index: number) => void }) {
   const [filter, setFilter] = useState<"all" | Reading["status"]>("all");
   const [query, setQuery] = useState("");
+  const [tag, setTag] = useState("");
+  const tags = [...new Set(state.readings.flatMap(item => item.tags || []))].sort();
+  const tagged = state.readings.filter(item => !tag || item.tags?.includes(tag));
+  const tagProgress = tagged.length ? Math.round(tagged.reduce((sum, item) => sum + item.progress, 0) / tagged.length) : 0;
   const active = state.readings.filter(item => item.status === "reading");
   const unstarted = state.readings.filter(item => item.status === "unstarted");
   const completed = state.readings.filter(item => item.status === "completed");
   const totalUnits = state.readings.reduce((sum, item) => sum + item.leafCount, 0);
   const completedUnits = state.readings.reduce((sum, item) => sum + item.completedCount, 0);
   const overallProgress = totalUnits ? Math.round(completedUnits / totalUnits * 100) : 0;
-  const visible = state.readings.filter(item => {
+  const visible = tagged.filter(item => {
     const matchesFilter = filter === "all" || item.status === filter;
     const term = query.trim().toLowerCase();
     return matchesFilter && (!term || `${item.title} ${item.author || ""} ${item.description || ""}`.toLowerCase().includes(term));
   });
   const tabs: Array<{ key: "all" | Reading["status"]; label: string; count: number }> = [
-    { key: "all", label: "全部", count: state.readings.length },
-    { key: "reading", label: "进行中", count: active.length },
-    { key: "unstarted", label: "未开始", count: unstarted.length },
-    { key: "completed", label: "已完成", count: completed.length },
+    { key: "all", label: "全部", count: tagged.length },
+    { key: "reading", label: "进行中", count: tagged.filter(r => r.status === "reading").length },
+    { key: "unstarted", label: "未开始", count: tagged.filter(r => r.status === "unstarted").length },
+    { key: "completed", label: "已完成", count: tagged.filter(r => r.status === "completed").length },
   ];
   return (
     <div className="home-shell">
@@ -311,6 +318,9 @@ function Overview({ state, onOpen, onDelete }: { state: MapState; onOpen: (file:
             <div className="filter-tabs" role="tablist" aria-label="阅读状态筛选">
               {tabs.map(tab => <button className={filter === tab.key ? "active" : ""} key={tab.key} onClick={() => setFilter(tab.key)}>{tab.label}<span>{tab.count}</span></button>)}
             </div>
+          </div>
+          <div className="tag-filter"><label>标签 <select value={tag} onChange={e => setTag(e.target.value)}><option value="">全部标签</option>{tags.map(t => <option key={t}>{t}</option>)}</select></label>
+            {tag && <small>{tagged.length} 项 · 平均进度 {tagProgress}%</small>}
           </div>
           <div className="reading-grid">
             {visible.map(reading => <ReadingCard key={reading.file} reading={reading} onOpen={() => onOpen(reading.file)} />)}
@@ -513,9 +523,43 @@ function EntryRow({ entry, reading, depth, disabled, onUpdate }: {
   );
 }
 
-function Detail({ reading, disabled, saveActivity, onSaveNow, onBack, onUpdate }: {
+function ReadingOrganization({ reading, readings, disabled, onOpen, onSaved }: {
+  reading: Reading; readings: Reading[]; disabled: boolean;
+  onOpen: (file: string) => void; onSaved: (state: MapState) => void;
+}) {
+  const [draft, setDraft] = useState<{ tags: string; related: string[]; version: string } | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const related = readings.filter(r => reading.related?.includes(r.file) || r.related?.includes(reading.file));
+  async function save() {
+    if (!draft) return;
+    setBusy(true);
+    try {
+      const tags = [...new Set(draft.tags.split(/[,，、\n]/).map(t => t.trim()).filter(Boolean))];
+      const next = await api(`/api/readings/${encodeURIComponent(reading.file)}/organization`, {
+        method: "PATCH", body: JSON.stringify({ dataVersion: draft.version, tags, related: draft.related })
+      });
+      onSaved(next); setDraft(null); setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "保存失败"); }
+    finally { setBusy(false); }
+  }
+  return <section className="reading-organization">
+    {reading.tags?.length ? <div className="reading-tags">{reading.tags.map(t => <span key={t}>{t}</span>)}</div> : null}
+    {related.length > 0 && <div><strong>关联阅读</strong>{related.map(r => <button className="related-item" key={r.file} onClick={() => onOpen(r.file)}>{r.title} · {r.progress}%</button>)}</div>}
+    {draft ? <fieldset disabled={busy || disabled}>
+      <legend>编辑标签与关联</legend>
+      <label>标签（逗号分隔）<input value={draft.tags} onChange={e => setDraft({ ...draft, tags: e.target.value })} /></label>
+      <div className="related-options">{readings.filter(r => r.file !== reading.file).map(r => <label key={r.file}><input type="checkbox" checked={draft.related.includes(r.file)} onChange={e => setDraft({ ...draft, related: e.target.checked ? [...draft.related, r.file] : draft.related.filter(f => f !== r.file) })} />{r.title}</label>)}</div>
+      {error && <p role="alert">{error}</p>}
+      <button className="button primary" onClick={save}>保存</button> <button className="button" onClick={() => setDraft(null)}>取消</button>
+    </fieldset> : <button className="button" disabled={disabled} onClick={() => { setError(""); setDraft({ tags: (reading.tags || []).join("，"), related: reading.related || [], version: reading.dataVersion }); }}>编辑标签与关联</button>}
+  </section>;
+}
+
+function Detail({ reading, organization, disabled, saveActivity, onSaveNow, onBack, onUpdate }: {
   reading: Reading;
   disabled: boolean;
+  organization: React.ReactNode;
   saveActivity: SaveActivity | null;
   onSaveNow: () => void;
   onBack: () => void;
@@ -567,6 +611,7 @@ function Detail({ reading, disabled, saveActivity, onSaveNow, onBack, onUpdate }
           <h2>{reading.progress}%</h2>
           <ProgressBar value={reading.progress} />
           {reading.description && <p>{reading.description}</p>}
+          {organization}
           {rootLeaf && <ReadingStatus value={reading.progress} disabled={disabled} onChange={value => onUpdate([], { progress: value })} />}
           <button className="button" onClick={() => setEditingRootNotes(value => !value)}>整体笔记</button>
           {editingRootNotes && <div className="root-notes"><textarea disabled={disabled} value={rootNotes} onChange={event => setRootNotes(event.target.value)} placeholder="记录这份 reading 的整体笔记…" /><button className="button primary" disabled={disabled} onClick={() => void onUpdate([], { notes: rootNotes })}>保存笔记</button></div>}
@@ -741,7 +786,7 @@ function App() {
       {state.readOnly && <div className="system-banner error"><strong>只读模式</strong>{state.errors.join("；")}</div>}
       {!state.readOnly && saveError && <div className="system-banner error"><span>{saveError}。页面上的修改仍然保留。</span><button className="button" onClick={() => void retrySaves()}>重试保存</button></div>}
       {!state.readOnly && !saveError && message && <div className={`system-banner ${messageError ? "error" : "success"}`}>{message}</div>}
-      {selected ? <Detail reading={selected} disabled={state.readOnly} saveActivity={saveActivity?.file === selected.file ? saveActivity : null} onSaveNow={() => void flushRef.current(selected.file)} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} /> : <Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} />}
+      {selected ? <Detail key={selected.file} reading={selected} organization={<ReadingOrganization reading={selected} readings={state.readings} disabled={state.readOnly || !!pendingRef.current.get(selected.file)} onOpen={setSelectedFile} onSaved={setCurrentState} />} disabled={state.readOnly} saveActivity={saveActivity?.file === selected.file ? saveActivity : null} onSaveNow={() => void flushRef.current(selected.file)} onBack={() => setSelectedFile(null)} onUpdate={(path, change) => update(selected, path, change)} /> : <Overview state={state} onOpen={setSelectedFile} onDelete={index => void removeInbox(index)} />}
     </>
   );
 }

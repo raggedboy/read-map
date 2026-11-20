@@ -13,3 +13,5 @@ Read `map/CONTRACT.md` completely and establish Agent access before calling the 
 4. Stop and request explicit confirmation. A draft is not permission to write.
 5. After confirmation, save the draft to a temporary JSON file and run `node client/read-map-client.mjs promote --file <slug.yaml> --inbox <indexes> --inbox-version <original-version> --input <file>`.
 6. Report the created Reading and removed Inbox sources. If the cloud state changed, stop and re-resolve instead of overwriting.
+
+Create independent Reading roots for standalone works. Offer tags and related Reading files instead of requiring a topic. Keep deliberately scoped collections and excerpts as independent works with their own internal units and progress. Reuse an existing work for another tag. Never infer identity solely from a matching URL.

@@ -386,3 +386,11 @@ a.file-name:hover strong { color: var(--green); }
   .folder-toolbar { align-items: flex-start; flex-direction: column; }
   .file-list { overflow-x: auto; }
 }
+.reading-tags, .tag-filter { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.reading-tags span { background:var(--green-soft); color:var(--green); padding:.2rem .5rem; border-radius:1rem; font-size:.75rem; }
+.tag-filter { margin:.75rem 0; }
+.tag-filter select, .reading-organization input:not([type]) { font:inherit; padding:.4rem; max-width:100%; }
+.reading-organization { display:grid; gap:.65rem; margin:1rem 0; }
+.related-item { display:block; color:var(--green); text-align:left; padding:.4rem 0; }
+.related-options { max-height:12rem; overflow:auto; margin:.5rem 0; }
+.related-options label { display:block; padding:.25rem 0; }

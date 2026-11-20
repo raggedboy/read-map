@@ -97,3 +97,7 @@ All three tools use the same authenticated owner-private MCP boundary. They do n
 
 `read_map_delete_reading({ file, dataVersion, expectedTitle })` permanently removes the explicitly selected top-level Reading only. Pass its exact root title and original version. Re-read state after an uncertain result.
 The same deletion is available through `read_map_edit_reading({ file, dataVersion, deleteReadingWithTitle })`, mutually exclusive with append and removePaths.
+
+Every Reading file identifies one independent work, including curated collections and selected excerpts. Chapters and progress belong to that file. On a root, tags is an optional array of labels and related is an optional array of Reading filenames. Group by tag using the mean progress of distinct works. Related works do not contribute chapters or progress. Do not automatically link by URL or title.
+
+Use read_map_edit_reading with organize: {tags, related} to replace root metadata at the selected version. To extract direct child trees transactionally, use extract: {tag, selections: [{index, file}]}. Verify source and destination filenames first. Full extraction replaces the collection and preserves its description and notes on the first extracted work. Partial extraction retains the parent and links the extracted works.

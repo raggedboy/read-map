@@ -291,3 +291,22 @@ test("whole-Reading edit requires an explicit title and excludes structural edit
   assert.deepEqual((await edit(args)).structuredContent.readings, []);
   sqlite.close();
 });
+
+test("extract preserves recorded chapters and rejects destination collisions atomically", async () => {
+  const { data, sqlite } = await fixture();
+  const child = { ...reading, children: [{ title: "one", type: "section", notes: "keep", progress: 70 }] };
+  await data.saveDocument("readings/topic.yaml", "reading", { title: "Topic", type: "collection", notes: "context", children: [child, reading] });
+  await data.saveDocument("readings/taken.yaml", "reading", reading);
+  const selections = [{ index: 0, file: "first.yaml" }, { index: 1, file: "taken.yaml" }];
+  await assert.rejects(data.extractReadings("topic.yaml", "1", selections, "Tag"));
+  assert.equal(await data.getDocument("readings/first.yaml"), null);
+  selections[1].file = "second.yaml";
+  await data.extractReadings("topic.yaml", "1", selections, "Tag");
+  assert.equal(await data.getDocument("readings/topic.yaml"), null);
+  await data.organizeReading("first.yaml", "1", ["Tag", "Other"], ["second.yaml"]);
+  await assert.rejects(data.organizeReading("first.yaml", "1", [], []));
+  const item = (await data.state()).readings.find(r => r.file === "first.yaml");
+  assert.equal(item.progress, 70); assert.equal(item.children[0].notes, "keep");
+  assert.match(item.notes, /context/); assert.deepEqual(item.tags, ["Tag", "Other"]);
+  sqlite.close();
+});

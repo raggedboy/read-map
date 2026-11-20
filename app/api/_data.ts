@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
-import { filename, indexes as validateIndexes, validateNode, version as validateVersion } from "../../map/validation";
+import { validateOrganization, filename, indexes as validateIndexes, validateNode, version as validateVersion } from "../../map/validation";
 
 export type ReadingNode = {
+  tags?: string[]; related?: string[];
   title: string; type: string; author?: string | null; version?: string | null;
   description?: string | null; link?: string | null; progress?: number;
   notes?: string | null; children?: ReadingNode[];
@@ -302,12 +303,64 @@ export async function restoreInboxItem(id: string, inboxVersion: string) {
   return { deletionId: id };
 }
 
+const noIncomingLinks = "NOT EXISTS (SELECT 1 FROM map_documents AS other, json_each(other.content, '$.related') AS link WHERE other.kind = 'reading' AND link.value = ?)";
+
 export async function deleteReading(file: string, dataVersion: string, expectedTitle: string) {
   filename(file);
   validateVersion(dataVersion);
   if (typeof expectedTitle !== "string" || !expectedTitle.trim()) throw new Error("Missing original title");
   const result = await env.DB.prepare(
-    "DELETE FROM map_documents WHERE kind = 'reading' AND path = ? AND version = ? AND json_extract(content, '$.title') = ?"
-  ).bind(`readings/${file}`, Number(dataVersion), expectedTitle).run();
-  if (!result.meta.changes) throw new Error("Reading selection changed or no longer exists");
+    `DELETE FROM map_documents WHERE kind = 'reading' AND path = ? AND version = ? AND json_extract(content, '$.title') = ? AND ${noIncomingLinks}`
+  ).bind(`readings/${file}`, Number(dataVersion), expectedTitle, file).run();
+  if (!result.meta.changes) throw new Error("Reading selection changed, no longer exists, or is linked from another work");
+}
+
+export async function organizeReading(file: string, dataVersion: string, tags: string[], related: string[]) {
+  filename(file); validateVersion(dataVersion);
+  validateOrganization(tags, related);
+  if (related.includes(file)) throw new Error("不能关联自身");
+  const result = await env.DB.prepare(`
+    UPDATE map_documents SET content = json_set(content, '$.tags', json(?), '$.related', json(?)),
+      version = version + 1, updated_at = ?
+    WHERE path = ? AND kind = 'reading' AND version = ?
+      AND NOT EXISTS (SELECT 1 FROM json_each(?) AS target WHERE NOT EXISTS
+        (SELECT 1 FROM map_documents AS dest WHERE dest.kind = 'reading' AND dest.path = 'readings/' || target.value))`)
+    .bind(JSON.stringify(tags), JSON.stringify(related), new Date().toISOString(), `readings/${file}`, Number(dataVersion), JSON.stringify(related)).run();
+  if (!result.meta.changes) throw new Error("阅读标的或关联对象已变更，请刷新");
+}
+
+// Extract original child trees directly from storage in one version-checked D1 transaction.
+export async function extractReadings(file: string, dataVersion: string, selections: { index: number; file: string }[], tag: string) {
+  filename(file); validateVersion(dataVersion); validateOrganization([tag], []);
+  if (!Array.isArray(selections) || !selections.length || selections.length > 90) throw new Error("请选择要独立的材料");
+  validateIndexes(selections.map(s => s.index));
+  for (const choice of selections) filename(choice.file);
+  if (new Set([file, ...selections.map(s => s.file)]).size !== selections.length + 1) throw new Error("文件名重复");
+  const doc = await getDocument(`readings/${file}`);
+  if (!doc || String(doc.version) !== dataVersion) throw new Error("阅读标的已变更，请刷新");
+  const root: ReadingNode = JSON.parse(doc.content);
+  const children = root.children || [];
+  const chosen = new Set(selections.map(s => s.index));
+  if (selections.some(s => !children[s.index])) throw new Error("无效的阅读单元");
+  const remaining = children.filter((_, index) => !chosen.has(index));
+  if (!remaining.length && root.type !== "collection") throw new Error("仅合集可以整体拆分");
+  if (!remaining.length && (root.related?.length || (await env.DB.prepare(`SELECT 1 AS linked WHERE NOT ${noIncomingLinks}`).bind(file).first()))) {
+    throw new Error("请先移除合集的关联阅读");
+  }
+  const updated = new Date().toISOString();
+  const writes = selections.map((selection, i) => {
+    const work = { ...children[selection.index], tags: [...new Set([...(root.tags || []), tag])] } as ReadingNode;
+
+    if (!remaining.length && i === 0) {
+      const context = [root.description, root.notes].filter(Boolean).join("\n\n");
+      if (context) work.notes = [work.notes, `原合集《${root.title}》\n${context}`].filter(Boolean).join("\n\n");
+    }
+    return env.DB.prepare("INSERT INTO map_documents(path, kind, content, version, updated_at) SELECT ?, 'reading', ?, 1, ? WHERE EXISTS (SELECT 1 FROM map_documents WHERE path = ? AND version = ? AND kind = 'reading')")
+      .bind(`readings/${selection.file}`, JSON.stringify(work), updated, doc.path, Number(dataVersion));
+  });
+  const finish = remaining.length
+    ? env.DB.prepare("UPDATE map_documents SET content = ?, version = version + 1, updated_at = ? WHERE path = ? AND version = ?").bind(JSON.stringify({ ...root, children: remaining, related: [...new Set([...(root.related || []), ...selections.map(s => s.file)])] }), updated, doc.path, Number(dataVersion))
+    : env.DB.prepare("DELETE FROM map_documents WHERE path = ? AND version = ?").bind(doc.path, Number(dataVersion));
+  const results = await env.DB.batch([...writes, finish]);
+  if (!results[0].meta.changes) throw new Error("阅读标的已变更，请刷新");
 }
